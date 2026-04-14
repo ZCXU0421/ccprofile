@@ -75,3 +75,21 @@ ccprofile current
 | `effortLevel` | 努力等级 | 否，默认 high |
 | `ANTHROPIC_MODEL` | 默认模型 | 否 |
 | `ANTHROPIC_DEFAULT_*_MODEL` | 各级别模型覆盖 | 否 |
+
+## 项目结构
+
+```text
+ccprofile.py                  # 兼容入口
+ccprofile_app/
+  __init__.py
+  cli.py                      # argparse 定义和 main()
+  constants.py                # 路径、字段定义、hooks 模板等常量
+  crypto.py                   # Fernet 密钥加载、保存、加解密
+  storage.py                  # profiles/meta/settings 读写和备份
+  hooks.py                    # hooks 生成、Bark key 脱敏
+  formatting.py               # token 脱敏
+  prompts.py                  # profile 字段交互输入
+  commands.py                 # init/add/switch/... 命令处理
+  terminal.py                 # 方向键读取、列表选择、VT mode
+  menu.py                     # interactive_menu()
+```
