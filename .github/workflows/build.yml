@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
@@ -59,11 +60,29 @@ jobs:
       - name: Rename for clarity and bundle installers
         run: |
           mkdir release
-          cp artifacts/ccprofile-windows/ccprofile.exe release/ccprofile-windows.exe
-          cp artifacts/ccprofile-macos-arm64/ccprofile release/ccprofile-macos-arm64
-          cp artifacts/ccprofile-macos-intel/ccprofile release/ccprofile-macos-intel
-          cp artifacts/ccprofile-linux/ccprofile release/ccprofile-linux
-          chmod +x release/ccprofile-macos-arm64 release/ccprofile-macos-intel release/ccprofile-linux
+
+          # Windows
+          if [ -f artifacts/ccprofile-windows/ccprofile.exe ]; then
+            cp artifacts/ccprofile-windows/ccprofile.exe release/ccprofile-windows.exe
+          fi
+
+          # macOS ARM64
+          if [ -f artifacts/ccprofile-macos-arm64/ccprofile ]; then
+            cp artifacts/ccprofile-macos-arm64/ccprofile release/ccprofile-macos-arm64
+            chmod +x release/ccprofile-macos-arm64
+          fi
+
+          # macOS Intel (optional, may not exist if runner unavailable)
+          if [ -f artifacts/ccprofile-macos-intel/ccprofile ]; then
+            cp artifacts/ccprofile-macos-intel/ccprofile release/ccprofile-macos-intel
+            chmod +x release/ccprofile-macos-intel
+          fi
+
+          # Linux
+          if [ -f artifacts/ccprofile-linux/ccprofile ]; then
+            cp artifacts/ccprofile-linux/ccprofile release/ccprofile-linux
+            chmod +x release/ccprofile-linux
+          fi
 
           # Bundle installers
           cp install.sh release/install-macos.sh
