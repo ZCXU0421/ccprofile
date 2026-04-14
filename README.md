@@ -2,35 +2,54 @@
 
 使用 Fernet 对称加密管理多套 API 提供商配置，支持命令行一键切换。
 
-## 依赖
+## 安装
 
-- Python 3.8+
-- `cryptography`
+从 [Releases](../../releases) 下载对应平台的文件，然后运行安装脚本。
+
+### Windows
+
+下载 `ccprofile-windows.exe` 和 `install-windows.bat`，放在同一目录下，双击 `install-windows.bat`。
+
+安装完成后重启终端，即可使用 `ccprofile` 命令。
+
+### macOS
+
+下载 `ccprofile-macos` 和 `install-macos.sh`，放在同一目录下，运行：
 
 ```bash
-pip install cryptography
+chmod +x install-macos.sh
+bash install-macos.sh
+```
+
+### Linux
+
+下载 `ccprofile-linux` 和 `install-linux.sh`，放在同一目录下，运行：
+
+```bash
+chmod +x install-linux.sh
+bash install-linux.sh
 ```
 
 ## 快速开始
 
 ```bash
 # 初始化（生成加密密钥）
-python ccprofile.py init
+ccprofile init
 
 # 添加配置（交互式）
-python ccprofile.py add my-provider
+ccprofile add my-provider
 
 # 添加配置（非交互式）
-python ccprofile.py add my-provider -t <API密钥> -u <API地址> -m opus
+ccprofile add my-provider -t <API密钥> -u <API地址> -m opus
 
 # 列出所有配置
-python ccprofile.py list
+ccprofile list
 
 # 切换配置
-python ccprofile.py switch my-provider
+ccprofile switch my-provider
 
 # 查看当前活动配置
-python ccprofile.py current
+ccprofile current
 ```
 
 ## 所有命令
@@ -46,21 +65,6 @@ python ccprofile.py current
 | `delete <名称>` | 删除配置 |
 | `current` | 显示当前活动配置 |
 
-### add 命令参数
-
-```
--t, --token          API 密钥
--u, --url            API 基础地址
--m, --model          模型 (opus/sonnet/haiku)
--e, --effort         努力等级 (low/medium/high)
---anthropic-model    默认模型
---haiku-model        Haiku 模型覆盖
---sonnet-model       Sonnet 模型覆盖
---opus-model         Opus 模型覆盖
---disable-all        启用所有禁用标志
---enable-teams       启用 Agent Teams 模式
-```
-
 ## 配置项
 
 | 字段 | 说明 | 必填 |
@@ -71,21 +75,3 @@ python ccprofile.py current
 | `effortLevel` | 努力等级 | 否，默认 high |
 | `ANTHROPIC_MODEL` | 默认模型 | 否 |
 | `ANTHROPIC_DEFAULT_*_MODEL` | 各级别模型覆盖 | 否 |
-
-## 文件结构
-
-```
-~/.claude/
-    .profile_key          ← Fernet 加密密钥
-    profiles.enc          ← 加密的配置存储
-    profiles_meta.json    ← 元数据（当前活动配置）
-    settings.json         ← Claude Code 设置（switch 命令修改目标）
-    settings.json.bak     ← 切换前自动备份
-```
-
-## 安全说明
-
-- 使用 Fernet（AES-128-CBC + HMAC-SHA256）加密存储所有配置
-- 密钥文件在 Windows 上设置隐藏属性，并限制文件权限
-- `show` 命令对 API 密钥进行脱敏显示（仅保留前8后4字符）
-- `switch` 命令在修改前自动备份 `settings.json`

@@ -515,6 +515,233 @@ def cmd_current(_args):
     print(f"  模型: {model}")
 
 
+# --- 交互式菜单 ---
+
+def _enable_vt_mode():
+    """Windows 上启用 VT100 转义序列支持。"""
+    if sys.platform == "win32":
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_ulong()
+        kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+        if not (mode.value & 0x0004):  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            kernel32.SetConsoleMode(handle, mode.value | 0x0004)
+
+
+def _read_key():
+    """读取单个按键，支持方向键。返回 'up'/'down'/'enter'/'escape'/'q' 或字符。"""
+    if sys.platform == "win32":
+        import msvcrt
+        ch = msvcrt.getwch()
+        if ch == '\r':
+            return 'enter'
+        if ch == '\x1b':
+            return 'escape'
+        if ch in ('\x00', '\xe0'):
+            ch2 = msvcrt.getwch()
+            if ch2 == 'H':
+                return 'up'
+            if ch2 == 'P':
+                return 'down'
+            return None
+        return ch
+    else:
+        import termios
+        import tty
+        import select
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch in ('\r', '\n'):
+                return 'enter'
+            if ch == '\x1b':
+                # Use select with a short timeout to distinguish lone Esc
+                # from escape sequences (which arrive as a burst)
+                if select.select([sys.stdin], [], [], 0.05)[0]:
+                    ch2 = sys.stdin.read(1)
+                    if ch2 == '[':
+                        ch3 = sys.stdin.read(1)
+                        if ch3 == 'A':
+                            return 'up'
+                        if ch3 == 'B':
+                            return 'down'
+                    return 'escape'
+                return 'escape'
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def select_from_list(items, prompt="请选择"):
+    """上下键选择菜单。items 为 [(key, display_text), ...]。返回 key 或 None。"""
+    if not items:
+        return None
+
+    if not sys.stdin.isatty():
+        # 非交互终端回退为编号输入
+        print(f"  {prompt}:")
+        for i, (_, text) in enumerate(items, 1):
+            print(f"    {i}) {text}")
+        choice = input(f"  请选择 [1-{len(items)}]: ").strip()
+        if choice.isdigit():
+            idx = int(choice) - 1
+            if 0 <= idx < len(items):
+                return items[idx][0]
+        return None
+
+    _enable_vt_mode()
+    selected = 0
+    rendered = False
+    line_count = len(items) + 1
+
+    def render():
+        nonlocal rendered
+        if rendered:
+            for _ in range(line_count):
+                sys.stdout.write('\x1b[A\x1b[2K\r')
+        rendered = True
+        sys.stdout.write(f"  {prompt}  (\x1b[2m↑↓ 选择 · Enter 确认 · Esc 取消\x1b[0m)\n")
+        for i, (_, text) in enumerate(items):
+            if i == selected:
+                sys.stdout.write(f"  \x1b[7m > {text}  \x1b[0m\n")
+            else:
+                sys.stdout.write(f"    {text}\n")
+        sys.stdout.flush()
+
+    render()
+
+    while True:
+        key = _read_key()
+        if key == 'up':
+            selected = (selected - 1) % len(items)
+            render()
+        elif key == 'down':
+            selected = (selected + 1) % len(items)
+            render()
+        elif key == 'enter':
+            for _ in range(line_count):
+                sys.stdout.write('\x1b[A\x1b[2K\r')
+            sys.stdout.write(f"  \x1b[1m> {items[selected][1]}\x1b[0m\n")
+            sys.stdout.flush()
+            return items[selected][0]
+        elif key in ('escape', 'q'):
+            for _ in range(line_count):
+                sys.stdout.write('\x1b[A\x1b[2K\r')
+            sys.stdout.write(f"  已取消\n")
+            sys.stdout.flush()
+            return None
+
+
+def interactive_menu():
+    """交互式菜单主循环。"""
+    commands_map = {
+        "init": cmd_init,
+        "add": cmd_add,
+        "switch": cmd_switch,
+        "list": cmd_list,
+        "show": cmd_show,
+        "edit": cmd_edit,
+        "delete": cmd_delete,
+        "current": cmd_current,
+    }
+    menu_items = [
+        ("list",    "列出所有配置"),
+        ("current", "显示当前活动配置"),
+        ("show",    "显示配置详情"),
+        ("switch",  "切换配置"),
+        ("add",     "添加配置"),
+        ("edit",    "编辑配置"),
+        ("delete",  "删除配置"),
+        ("init",    "初始化 / 重置密钥"),
+        ("__exit__", "退出"),
+    ]
+
+    def pick_profile(prompt_text):
+        """列出配置供用户上下键选择。"""
+        if not KEY_FILE.exists() or not PROFILES_ENC.exists():
+            print("  暂无配置。请先 init 并 add。")
+            return None
+        profiles = load_profiles()
+        if not profiles:
+            print("  暂无配置。请先添加。")
+            return None
+        names = list(profiles.keys())
+        meta = load_meta()
+        items = []
+        for n in names:
+            mark = " *" if n == meta.get("active") else ""
+            url = profiles[n].get("env", {}).get("ANTHROPIC_BASE_URL", "")
+            items.append((n, f"{n}{mark}  ({url})"))
+        items.append((None, "取消"))
+        return select_from_list(items, prompt_text)
+
+    print("\n  ccprofile — Claude Code 配置管理")
+
+    while True:
+        meta = load_meta() if KEY_FILE.exists() else {}
+        active = meta.get("active", "")
+        if active:
+            print(f"  当前配置: {active}\n")
+
+        try:
+            cmd_name = select_from_list(menu_items, "请选择操作")
+        except (EOFError, KeyboardInterrupt):
+            print("\n  再见！")
+            break
+
+        if cmd_name is None or cmd_name == "__exit__":
+            print("  再见！")
+            break
+
+        class Args:
+            pass
+
+        args = Args()
+
+        try:
+            if cmd_name == "add":
+                name = input("  配置名称: ").strip()
+                if not name:
+                    print("  已取消。")
+                    continue
+                args.name = name
+                args.token = None
+                args.url = None
+                args.model = None
+                args.effort = None
+                args.anthropic_model = None
+                args.haiku_model = None
+                args.sonnet_model = None
+                args.opus_model = None
+                args.disable_all = False
+                args.enable_teams = False
+                args.bark_key = None
+                args.host_label = None
+                args.notify_sound = None
+                args.hooks_json = None
+                commands_map[cmd_name](args)
+
+            elif cmd_name in ("switch", "show", "edit", "delete"):
+                name = pick_profile("选择配置")
+                if name is None:
+                    continue
+                args.name = name
+                commands_map[cmd_name](args)
+
+            else:
+                commands_map[cmd_name](args)
+
+        except SystemExit:
+            pass
+        except (EOFError, KeyboardInterrupt):
+            print("\n  返回主菜单。")
+
+        print()
+
+
 # --- 入口 ---
 
 def main():
@@ -570,8 +797,8 @@ def main():
     args = parser.parse_args()
 
     if not args.command:
-        parser.print_help()
-        sys.exit(0)
+        interactive_menu()
+        return
 
     commands = {
         "init": cmd_init,

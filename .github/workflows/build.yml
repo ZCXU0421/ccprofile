@@ -44,17 +44,25 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Rename for clarity
+      - name: Rename for clarity and bundle installers
         run: |
           mkdir release
           cp artifacts/ccprofile-Windows/ccprofile.exe release/ccprofile-windows.exe
           cp artifacts/ccprofile-macOS/ccprofile release/ccprofile-macos
           cp artifacts/ccprofile-Linux/ccprofile release/ccprofile-linux
           chmod +x release/ccprofile-macos release/ccprofile-linux
+
+          # Bundle installers (same script for both platforms)
+          cp install.sh release/install-macos.sh
+          cp install.sh release/install-linux.sh
+          # Windows installer stays as-is (install.bat)
+          cp install.bat release/install-windows.bat
 
       - uses: softprops/action-gh-release@v2
         with:
