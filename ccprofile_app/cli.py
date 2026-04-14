@@ -17,6 +17,7 @@ except ImportError:
 from .commands import cmd_add, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch  # noqa: E402
 from .constants import VERSION  # noqa: E402
 from .menu import interactive_menu  # noqa: E402
+from .storage import migrate_from_legacy  # noqa: E402
 
 
 def build_parser():
@@ -78,6 +79,8 @@ def main():
     """CLI 主入口。"""
     parser = build_parser()
     args = parser.parse_args()
+
+    migrate_from_legacy()
 
     if not args.command:
         interactive_menu()

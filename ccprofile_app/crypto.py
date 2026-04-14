@@ -6,7 +6,7 @@ import sys
 
 from cryptography.fernet import Fernet
 
-from .constants import CLAUDE_DIR, KEY_FILE
+from .constants import PROFILE_DIR, KEY_FILE
 
 
 def load_key():
@@ -19,7 +19,7 @@ def load_key():
 
 def save_key(key):
     """保存密钥并设置隐藏属性（Windows）。"""
-    CLAUDE_DIR.mkdir(parents=True, exist_ok=True)
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     KEY_FILE.write_bytes(key)
     if sys.platform == "win32":
         import ctypes

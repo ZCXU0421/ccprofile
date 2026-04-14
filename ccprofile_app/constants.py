@@ -5,9 +5,10 @@ from pathlib import Path
 VERSION = "0.1.0"
 
 CLAUDE_DIR = Path.home() / ".claude"
-KEY_FILE = CLAUDE_DIR / ".profile_key"
-PROFILES_ENC = CLAUDE_DIR / "profiles.enc"
-META_FILE = CLAUDE_DIR / "profiles_meta.json"
+PROFILE_DIR = Path.home() / ".ccprofile"
+KEY_FILE = PROFILE_DIR / ".profile_key"
+PROFILES_ENC = PROFILE_DIR / "profiles.enc"
+META_FILE = PROFILE_DIR / "profiles_meta.json"
 SETTINGS_FILE = CLAUDE_DIR / "settings.json"
 SETTINGS_BAK = CLAUDE_DIR / "settings.json.bak"
 
