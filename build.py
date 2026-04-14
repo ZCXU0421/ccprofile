@@ -42,6 +42,8 @@ def build():
         "--hidden-import", "cryptography.hazmat.primitives.ciphers",
         "--hidden-import", "cryptography.hazmat.primitives",
         "--hidden-import", "cryptography.hazmat.backends",
+        "--hidden-import", "ccprofile_app",
+        "--collect-submodules", "ccprofile_app",
         str(ROOT / "ccprofile.py"),
     ]
 
