@@ -18,9 +18,17 @@ for DIR in "$SCRIPT_DIR/dist" "$SCRIPT_DIR"; do
     if [ -f "$DIR/ccprofile" ]; then
         BINARY="$DIR/ccprofile"
         break
-    elif [ "$(uname -s)" = "Darwin" ] && [ -f "$DIR/ccprofile-macos" ]; then
-        BINARY="$DIR/ccprofile-macos"
-        break
+    elif [ "$(uname -s)" = "Darwin" ]; then
+        if [ -f "$DIR/ccprofile-macos-arm64" ]; then
+            BINARY="$DIR/ccprofile-macos-arm64"
+            break
+        elif [ -f "$DIR/ccprofile-macos-intel" ]; then
+            BINARY="$DIR/ccprofile-macos-intel"
+            break
+        elif [ -f "$DIR/ccprofile-macos" ]; then
+            BINARY="$DIR/ccprofile-macos"
+            break
+        fi
     elif [ -f "$DIR/ccprofile-linux" ]; then
         BINARY="$DIR/ccprofile-linux"
         break

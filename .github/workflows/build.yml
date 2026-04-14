@@ -15,10 +15,16 @@ jobs:
         include:
           - os: windows-latest
             artifact: ccprofile.exe
+            platform: windows
           - os: macos-latest
             artifact: ccprofile
-          - os: ubuntu-latest
+            platform: macos-arm64
+          - os: macos-13
             artifact: ccprofile
+            platform: macos-intel
+          - os: ubuntu-22.04
+            artifact: ccprofile
+            platform: linux
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -36,7 +42,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ccprofile-${{ runner.os }}
+          name: ccprofile-${{ matrix.platform }}
           path: dist/${{ matrix.artifact }}
 
   release:
@@ -53,15 +59,15 @@ jobs:
       - name: Rename for clarity and bundle installers
         run: |
           mkdir release
-          cp artifacts/ccprofile-Windows/ccprofile.exe release/ccprofile-windows.exe
-          cp artifacts/ccprofile-macOS/ccprofile release/ccprofile-macos
-          cp artifacts/ccprofile-Linux/ccprofile release/ccprofile-linux
-          chmod +x release/ccprofile-macos release/ccprofile-linux
+          cp artifacts/ccprofile-windows/ccprofile.exe release/ccprofile-windows.exe
+          cp artifacts/ccprofile-macos-arm64/ccprofile release/ccprofile-macos-arm64
+          cp artifacts/ccprofile-macos-intel/ccprofile release/ccprofile-macos-intel
+          cp artifacts/ccprofile-linux/ccprofile release/ccprofile-linux
+          chmod +x release/ccprofile-macos-arm64 release/ccprofile-macos-intel release/ccprofile-linux
 
-          # Bundle installers (same script for both platforms)
+          # Bundle installers
           cp install.sh release/install-macos.sh
           cp install.sh release/install-linux.sh
-          # Windows installer stays as-is (install.bat)
           cp install.bat release/install-windows.bat
 
       - uses: softprops/action-gh-release@v2
