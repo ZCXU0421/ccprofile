@@ -8,35 +8,35 @@
 
 ### 命令行一键下载（推荐）
 
-使用 [GitHub CLI (`gh`)](https://cli.github.com/) 快速下载最新发行版到当前目录：
+使用 `curl` 下载最新发行版到当前目录：
 
 **Windows（PowerShell）：**
 
 ```powershell
-gh release download --repo ZCXU0421/ccprofile --pattern "ccprofile-windows.exe" --pattern "install-windows.bat"
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/ccprofile-windows.exe"
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-windows.bat"
 ```
 
 **macOS：**
 
 ```bash
-gh release download --repo ZCXU0421/ccprofile --pattern "ccprofile-macos" --pattern "install-macos.sh"
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/ccprofile-macos"
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-macos.sh"
 chmod +x install-macos.sh ccprofile-macos
 ```
 
 **Linux：**
 
 ```bash
-gh release download --repo ZCXU0421/ccprofile --pattern "ccprofile-linux" --pattern "install-linux.sh"
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/ccprofile-linux"
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-linux.sh"
 chmod +x install-linux.sh ccprofile-linux
 ```
 
-> **提示**：如果未安装 `gh`，也可用 `curl` 下载（需将 `VERSION` 替换为实际版本号，如 `v1.0.0`）：
+> **提示**：如果已安装 [GitHub CLI (`gh`)](https://cli.github.com/)，也可以用 `gh` 下载：
 >
 > ```bash
-> VERSION="v1.0.0"
-> REPO="ZCXU0421/ccprofile"
-> curl -sLO "https://github.com/${REPO}/releases/download/${VERSION}/ccprofile-linux"
-> curl -sLO "https://github.com/${REPO}/releases/download/${VERSION}/install-linux.sh"
+> gh release download --repo ZCXU0421/ccprofile --pattern "ccprofile-linux" --pattern "install-linux.sh"
 > ```
 
 ### 手动下载与安装
