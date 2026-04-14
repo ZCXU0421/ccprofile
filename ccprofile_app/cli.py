@@ -15,6 +15,7 @@ except ImportError:
     sys.exit(1)
 
 from .commands import cmd_add, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch  # noqa: E402
+from .constants import VERSION  # noqa: E402
 from .menu import interactive_menu  # noqa: E402
 
 
@@ -24,6 +25,7 @@ def build_parser():
         prog="ccprofile",
         description="Claude Code API 配置管理工具"
     )
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {VERSION}")
     sub = parser.add_subparsers(dest="command")
 
     # init

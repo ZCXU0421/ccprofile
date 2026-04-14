@@ -23,6 +23,17 @@ def _read_key():
         if ch == '\r':
             return 'enter'
         if ch == '\x1b':
+            # VT escape sequence: arrow keys in Windows Terminal etc.
+            # \x1b[A = up, \x1b[B = down, \x1bOA = up (SS3), \x1bOB = down (SS3)
+            if msvcrt.kbhit():
+                ch2 = msvcrt.getwch()
+                if ch2 == '[' or ch2 == 'O':
+                    if msvcrt.kbhit():
+                        ch3 = msvcrt.getwch()
+                        if ch3 == 'A':
+                            return 'up'
+                        if ch3 == 'B':
+                            return 'down'
             return 'escape'
         if ch in ('\x00', '\xe0'):
             ch2 = msvcrt.getwch()
@@ -33,30 +44,39 @@ def _read_key():
             return None
         return ch
     else:
-        import termios
-        import tty
+        import os
         import select
+        import termios
+        import time
+        import tty
+
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:
             tty.setraw(fd)
-            ch = sys.stdin.read(1)
-            if ch in ('\r', '\n'):
+            ch = os.read(fd, 1)
+            if ch in (b'\r', b'\n'):
                 return 'enter'
-            if ch == '\x1b':
-                # Use select with a short timeout to distinguish lone Esc
-                # from escape sequences (which arrive as a burst)
-                if select.select([sys.stdin], [], [], 0.05)[0]:
-                    ch2 = sys.stdin.read(1)
-                    if ch2 == '[':
-                        ch3 = sys.stdin.read(1)
-                        if ch3 == 'A':
-                            return 'up'
-                        if ch3 == 'B':
-                            return 'down'
-                    return 'escape'
+            if ch == b'\x1b':
+                seq = bytearray(ch)
+                deadline = time.monotonic() + 0.12
+                while len(seq) < 8:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+                    if not select.select([fd], [], [], remaining)[0]:
+                        break
+                    seq.extend(os.read(fd, 1))
+                    if len(seq) >= 3 and seq[1:2] in (b'[', b'O') and seq[-1:] in (b'A', b'B'):
+                        break
+
+                if len(seq) >= 3 and seq[1:2] in (b'[', b'O'):
+                    if seq[-1:] == b'A':
+                        return 'up'
+                    if seq[-1:] == b'B':
+                        return 'down'
                 return 'escape'
-            return ch
+            return ch.decode(errors='ignore')
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 

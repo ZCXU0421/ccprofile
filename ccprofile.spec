@@ -1,12 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_submodules
+
+hiddenimports = ['cryptography', 'cryptography.fernet', 'cryptography.hazmat.primitives.ciphers', 'cryptography.hazmat.primitives', 'cryptography.hazmat.backends', 'ccprofile_app']
+hiddenimports += collect_submodules('ccprofile_app')
 
 
 a = Analysis(
-    ['/mnt/c/Users/26958/OneDrive - The University of Hong Kong - Connect/Desktop/AutoCCSettings/ccprofile.py'],
+    ['ccprofile.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['cryptography', 'cryptography.fernet', 'cryptography.hazmat.primitives.ciphers', 'cryptography.hazmat.primitives', 'cryptography.hazmat.backends', 'ccprofile_app'],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

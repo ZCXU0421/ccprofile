@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+VERSION = "0.1.0"
+
 CLAUDE_DIR = Path.home() / ".claude"
 KEY_FILE = CLAUDE_DIR / ".profile_key"
 PROFILES_ENC = CLAUDE_DIR / "profiles.enc"
