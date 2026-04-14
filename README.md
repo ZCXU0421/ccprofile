@@ -6,13 +6,48 @@
 
 从 [Releases](../../releases) 下载对应平台的文件，然后运行安装脚本。
 
-### Windows
+### 命令行一键下载（推荐）
+
+使用 [GitHub CLI (`gh`)](https://cli.github.com/) 快速下载最新发行版到当前目录：
+
+**Windows（PowerShell）：**
+
+```powershell
+gh release download --repo ZCXU0421/ccprofile --pattern "ccprofile-windows.exe" --pattern "install-windows.bat"
+```
+
+**macOS：**
+
+```bash
+gh release download --repo ZCXU0421/ccprofile --pattern "ccprofile-macos" --pattern "install-macos.sh"
+chmod +x install-macos.sh ccprofile-macos
+```
+
+**Linux：**
+
+```bash
+gh release download --repo ZCXU0421/ccprofile --pattern "ccprofile-linux" --pattern "install-linux.sh"
+chmod +x install-linux.sh ccprofile-linux
+```
+
+> **提示**：如果未安装 `gh`，也可用 `curl` 下载（需将 `VERSION` 替换为实际版本号，如 `v1.0.0`）：
+>
+> ```bash
+> VERSION="v1.0.0"
+> REPO="ZCXU0421/ccprofile"
+> curl -sLO "https://github.com/${REPO}/releases/download/${VERSION}/ccprofile-linux"
+> curl -sLO "https://github.com/${REPO}/releases/download/${VERSION}/install-linux.sh"
+> ```
+
+### 手动下载与安装
+
+#### Windows
 
 下载 `ccprofile-windows.exe` 和 `install-windows.bat`，放在同一目录下，双击 `install-windows.bat`。
 
 安装完成后重启终端，即可使用 `ccprofile` 命令。
 
-### macOS
+#### macOS
 
 下载 `ccprofile-macos` 和 `install-macos.sh`，放在同一目录下，运行：
 
@@ -21,7 +56,7 @@ chmod +x install-macos.sh
 bash install-macos.sh
 ```
 
-### Linux
+#### Linux
 
 下载 `ccprofile-linux` 和 `install-linux.sh`，放在同一目录下，运行：
 
