@@ -5,6 +5,38 @@ from .constants import KEY_FILE, PROFILES_ENC
 from .storage import load_meta, load_profiles
 from .terminal import select_from_list
 
+# ── 菜单结构定义 ──
+
+MAIN_MENU = [
+    ("switch",   "切换配置"),
+    ("_view",    "查看配置 ←→"),
+    ("_manage",  "管理配置 ←→"),
+    ("_system",  "系统设置 ←→"),
+    ("__exit__", "退出"),
+]
+
+VIEW_MENU = [
+    ("list",    "列出所有配置"),
+    ("current", "显示当前活动配置"),
+    ("show",    "显示配置详情"),
+]
+
+MANAGE_MENU = [
+    ("add",     "添加配置"),
+    ("edit",    "编辑配置"),
+    ("delete",  "删除配置"),
+]
+
+SYSTEM_MENU = [
+    ("init",    "初始化 / 重置密钥"),
+]
+
+SUB_MENUS = {
+    "_view":   ("查看配置", VIEW_MENU),
+    "_manage": ("管理配置", MANAGE_MENU),
+    "_system": ("系统设置", SYSTEM_MENU),
+}
+
 
 def interactive_menu():
     """交互式菜单主循环。"""
@@ -18,17 +50,6 @@ def interactive_menu():
         "delete": cmd_delete,
         "current": cmd_current,
     }
-    menu_items = [
-        ("list",    "列出所有配置"),
-        ("current", "显示当前活动配置"),
-        ("show",    "显示配置详情"),
-        ("switch",  "切换配置"),
-        ("add",     "添加配置"),
-        ("edit",    "编辑配置"),
-        ("delete",  "删除配置"),
-        ("init",    "初始化 / 重置密钥"),
-        ("__exit__", "退出"),
-    ]
 
     def pick_profile(prompt_text):
         """列出配置供用户上下键选择。"""
@@ -49,7 +70,50 @@ def interactive_menu():
         items.append((None, "取消"))
         return select_from_list(items, prompt_text)
 
+    def _execute_command(cmd_name):
+        """执行单个命令，处理参数构造和错误。"""
+        class Args:
+            pass
+
+        args = Args()
+
+        if cmd_name == "add":
+            name = input("  配置名称: ").strip()
+            if not name:
+                print("  已取消。")
+                return
+            args.name = name
+            args.token = None
+            args.url = None
+            args.model = None
+            args.effort = None
+            args.anthropic_model = None
+            args.haiku_model = None
+            args.sonnet_model = None
+            args.opus_model = None
+            args.disable_all = False
+            args.enable_teams = False
+            args.bark_key = None
+            args.host_label = None
+            args.notify_sound = None
+            args.hooks_json = None
+        elif cmd_name in ("switch", "show", "edit", "delete"):
+            name = pick_profile("选择配置")
+            if name is None:
+                return
+            args.name = name
+
+        try:
+            commands_map[cmd_name](args)
+        except SystemExit:
+            pass
+        except (EOFError, KeyboardInterrupt):
+            print("\n  操作已取消。")
+
     print("\n  ccprofile — Claude Code 配置管理")
+
+    current_menu = MAIN_MENU
+    current_prompt = "请选择操作"
 
     while True:
         meta = load_meta() if KEY_FILE.exists() else {}
@@ -58,56 +122,27 @@ def interactive_menu():
             print(f"  当前配置: {active}\n")
 
         try:
-            cmd_name = select_from_list(menu_items, "请选择操作")
+            selected = select_from_list(current_menu, current_prompt)
         except (EOFError, KeyboardInterrupt):
             print("\n  再见！")
             break
 
-        if cmd_name is None or cmd_name == "__exit__":
-            print("  再见！")
-            break
+        # 取消 / 退出
+        if selected is None or selected == "__exit__":
+            if current_menu is MAIN_MENU:
+                print("  再见！")
+                break
+            current_menu = MAIN_MENU
+            current_prompt = "请选择操作"
+            continue
 
-        class Args:
-            pass
+        # 子菜单入口
+        if selected in SUB_MENUS:
+            current_prompt, current_menu = SUB_MENUS[selected]
+            continue
 
-        args = Args()
-
-        try:
-            if cmd_name == "add":
-                name = input("  配置名称: ").strip()
-                if not name:
-                    print("  已取消。")
-                    continue
-                args.name = name
-                args.token = None
-                args.url = None
-                args.model = None
-                args.effort = None
-                args.anthropic_model = None
-                args.haiku_model = None
-                args.sonnet_model = None
-                args.opus_model = None
-                args.disable_all = False
-                args.enable_teams = False
-                args.bark_key = None
-                args.host_label = None
-                args.notify_sound = None
-                args.hooks_json = None
-                commands_map[cmd_name](args)
-
-            elif cmd_name in ("switch", "show", "edit", "delete"):
-                name = pick_profile("选择配置")
-                if name is None:
-                    continue
-                args.name = name
-                commands_map[cmd_name](args)
-
-            else:
-                commands_map[cmd_name](args)
-
-        except SystemExit:
-            pass
-        except (EOFError, KeyboardInterrupt):
-            print("\n  返回主菜单。")
-
+        # 执行命令
+        _execute_command(selected)
         print()
+
+    print()
