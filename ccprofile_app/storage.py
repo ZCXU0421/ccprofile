@@ -1,7 +1,9 @@
 """profiles / meta / settings 文件读写和备份。"""
 
 import json
+import os
 import shutil
+import stat
 
 from .constants import (
     CLAUDE_DIR,
@@ -9,6 +11,8 @@ from .constants import (
     META_FILE,
     PROFILE_DIR,
     PROFILES_ENC,
+    PROVIDERS_ENC,
+    PROXY_CONFIG,
     SETTINGS_BAK,
     SETTINGS_FILE,
 )
@@ -87,3 +91,47 @@ def write_settings(data):
     SETTINGS_FILE.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8"
     )
+
+
+# ── Provider storage ──
+
+
+def load_providers():
+    """加载并解密所有提供商配置。"""
+    key = load_key()
+    if not PROVIDERS_ENC.exists():
+        return {}
+    return decrypt_data(PROVIDERS_ENC.read_bytes(), key)
+
+
+def save_providers(providers):
+    """加密并保存所有提供商配置。"""
+    key = load_key()
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    PROVIDERS_ENC.write_bytes(encrypt_data(providers, key))
+
+
+# ── Proxy config ──
+
+
+def load_proxy_config():
+    """加载代理运行时配置。"""
+    if not PROXY_CONFIG.exists():
+        return None
+    return json.loads(PROXY_CONFIG.read_text("utf-8"))
+
+
+def save_proxy_config(config):
+    """保存代理运行时配置（包含明文 API key，需限制权限）。"""
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    PROXY_CONFIG.write_text(
+        json.dumps(config, indent=2, ensure_ascii=False) + "\n", "utf-8"
+    )
+    # Restrict permissions (same as key file)
+    os.chmod(str(PROXY_CONFIG), stat.S_IRUSR | stat.S_IWUSR)
+
+
+def clear_proxy_config():
+    """清除代理运行时配置。"""
+    if PROXY_CONFIG.exists():
+        PROXY_CONFIG.unlink()

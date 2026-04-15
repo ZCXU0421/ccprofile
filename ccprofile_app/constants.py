@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-VERSION = "0.1.1"
+VERSION = "0.2.0"
 
 CLAUDE_DIR = Path.home() / ".claude"
 PROFILE_DIR = Path.home() / ".ccprofile"
@@ -11,6 +11,15 @@ PROFILES_ENC = PROFILE_DIR / "profiles.enc"
 META_FILE = PROFILE_DIR / "profiles_meta.json"
 SETTINGS_FILE = CLAUDE_DIR / "settings.json"
 SETTINGS_BAK = CLAUDE_DIR / "settings.json.bak"
+
+# Provider storage
+PROVIDERS_ENC = PROFILE_DIR / "providers.enc"
+
+# Proxy runtime files
+PROXY_CONFIG = PROFILE_DIR / "proxy_config.json"
+PROXY_PID = PROFILE_DIR / "proxy.pid"
+PROXY_LOG = PROFILE_DIR / "proxy.log"
+DEFAULT_PROXY_PORT = 18888
 
 FIELDS = [
     # (key, label, required, default)
@@ -55,3 +64,35 @@ HOOKS_FIELDS = [
     ("host_label", "主机名标签", False, None),
     ("sound", "通知铃声", False, "minuet"),
 ]
+
+# Provider fields for interactive input
+PROVIDER_FIELDS = [
+    # (key, label, required, default)
+    ("base_url", "API 基础地址或 /v1/messages 端点", True, None),
+    ("api_key", "API 密钥", True, None),
+    ("models", "可用模型 (逗号分隔)", True, None),
+]
+
+# Claude Code model slots and their name prefixes
+MODEL_SLOTS = ["opus", "sonnet", "haiku"]
+
+MODEL_SLOT_PREFIXES = {
+    "opus": "claude-opus",
+    "sonnet": "claude-sonnet",
+    "haiku": "claude-haiku",
+}
+
+# Env keys that ccprofile manages in settings.json
+CCPROFILE_MANAGED_ENV_KEYS = {
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "DISABLE_TELEMETRY",
+    "DISABLE_AUTOUPDATER",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
+}

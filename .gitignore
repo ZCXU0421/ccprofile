@@ -5,3 +5,4 @@ dist/
 *.spec
 .claude/
 docs/plan.md
+
