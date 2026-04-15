@@ -16,7 +16,7 @@ def _enable_vt_mode():
 
 
 def _read_key():
-    """读取单个按键，支持方向键。返回 'up'/'down'/'enter'/'escape'/'q' 或字符。"""
+    """读取单个按键，支持方向键。返回 'up'/'down'/'left'/'right'/'enter'/'escape'/'q' 或字符。"""
     if sys.platform == "win32":
         import msvcrt
         ch = msvcrt.getwch()
@@ -34,9 +34,17 @@ def _read_key():
                             return 'up'
                         if ch3 == 'B':
                             return 'down'
+                        if ch3 == 'C':
+                            return 'right'
+                        if ch3 == 'D':
+                            return 'left'
             return 'escape'
         if ch in ('\x00', '\xe0'):
             ch2 = msvcrt.getwch()
+            if ch2 == 'K':
+                return 'left'
+            if ch2 == 'M':
+                return 'right'
             if ch2 == 'H':
                 return 'up'
             if ch2 == 'P':
@@ -67,7 +75,7 @@ def _read_key():
                     if not select.select([fd], [], [], remaining)[0]:
                         break
                     seq.extend(os.read(fd, 1))
-                    if len(seq) >= 3 and seq[1:2] in (b'[', b'O') and seq[-1:] in (b'A', b'B'):
+                    if len(seq) >= 3 and seq[1:2] in (b'[', b'O') and seq[-1:] in (b'A', b'B', b'C', b'D'):
                         break
 
                 if len(seq) >= 3 and seq[1:2] in (b'[', b'O'):
@@ -75,6 +83,9 @@ def _read_key():
                         return 'up'
                     if seq[-1:] == b'B':
                         return 'down'
+                    if seq[-1:] in (b'C', b'D'):
+                        return 'right' if seq[-1:] == b'C' else 'left'
+                    return None  # ignore other escape sequences
                 return 'escape'
             return ch.decode(errors='ignore')
         finally:
@@ -109,7 +120,7 @@ def select_from_list(items, prompt="请选择"):
             for _ in range(line_count):
                 sys.stdout.write('\x1b[A\x1b[2K\r')
         rendered = True
-        sys.stdout.write(f"  {prompt}  (\x1b[2m↑↓ 选择 · Enter 确认 · Esc 取消\x1b[0m)\n")
+        sys.stdout.write(f"  {prompt}  (\x1b[2m↑↓ 选择 · ← 返回 · → 确认 · Esc 取消\x1b[0m)\n")
         for i, (_, text) in enumerate(items):
             if i == selected:
                 sys.stdout.write(f"  \x1b[7m > {text}  \x1b[0m\n")
@@ -127,13 +138,13 @@ def select_from_list(items, prompt="请选择"):
         elif key == 'down':
             selected = (selected + 1) % len(items)
             render()
-        elif key == 'enter':
+        elif key == 'enter' or key == 'right':
             for _ in range(line_count):
                 sys.stdout.write('\x1b[A\x1b[2K\r')
             sys.stdout.write(f"  \x1b[1m> {items[selected][1]}\x1b[0m\n")
             sys.stdout.flush()
             return items[selected][0]
-        elif key in ('escape', 'q'):
+        elif key in ('escape', 'q', 'left'):
             for _ in range(line_count):
                 sys.stdout.write('\x1b[A\x1b[2K\r')
             sys.stdout.write(f"  已取消\n")
