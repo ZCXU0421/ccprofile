@@ -25,40 +25,40 @@
 
 ### 预编译二进制
 
-从 [Releases](https://github.com/ZCXU0421/ccprofile/releases/latest) 下载对应平台的文件。
+从 [Releases](https://github.com/ZCXU0421/ccprofile/releases/latest) 下载对应平台的安装脚本。
 
 **Linux**
 
 ```bash
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/ccprofile-linux"
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install.sh"
-chmod +x install.sh ccprofile-linux
-./install.sh
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-linux"
+chmod +x install-linux
+./install-linux
 ```
 
-**macOS**
-
-Apple Silicon:
+**macOS (Apple Silicon)**
 
 ```bash
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/ccprofile-macos-arm64"
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install.sh"
-chmod +x install.sh ccprofile-macos-arm64
-./install.sh
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-macos-arm64"
+chmod +x install-macos-arm64
+./install-macos-arm64
 ```
 
-Intel Mac:
+**macOS (Intel)**
 
 ```bash
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/ccprofile-macos-intel"
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install.sh"
-chmod +x install.sh ccprofile-macos-intel
-./install.sh
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-macos-intel"
+chmod +x install-macos-intel
+./install-macos-intel
 ```
 
 **Windows**
 
-从 Releases 下载 `ccprofile-windows.exe`，放入任意 `PATH` 目录，并重命名为 `ccprofile.exe`。
+```cmd
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-windows.bat"
+install-windows.bat
+```
+
+或从 Releases 页面下载 `install-windows.bat`，双击运行。
 
 ### 从源码运行
 
