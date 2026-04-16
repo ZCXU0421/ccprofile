@@ -26,6 +26,7 @@ from .commands import (  # noqa: E402
     cmd_proxy_stop,
     cmd_show,
     cmd_switch,
+    cmd_teams,
 )
 from .constants import VERSION  # noqa: E402
 from .menu import interactive_menu  # noqa: E402
@@ -84,6 +85,8 @@ def build_parser():
     # edit
     p_edit = sub.add_parser("edit", help="编辑配置")
     p_edit.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
+    p_edit.add_argument("--enable-teams", action="store_true", help="启用 Agent Teams 模式")
+    p_edit.add_argument("--disable-teams", action="store_true", help="禁用 Agent Teams 模式")
 
     # delete
     p_del = sub.add_parser("delete", help="删除配置")
@@ -91,6 +94,13 @@ def build_parser():
 
     # current
     sub.add_parser("current", help="显示当前活动配置")
+
+    # teams
+    p_teams = sub.add_parser("teams", help="切换 Agent Teams 模式")
+    p_teams.add_argument("action", nargs="?", choices=["on", "off", "toggle"],
+                         default="toggle", help="操作 (on/off/toggle，默认 toggle)")
+    p_teams.add_argument("--apply", action="store_true",
+                         help="同时更新 settings.json 使变更立即生效")
 
     # provider
     p_prov = sub.add_parser("provider", help="提供商管理")
@@ -162,6 +172,7 @@ def main():
         "edit": cmd_edit,
         "delete": cmd_delete,
         "current": cmd_current,
+        "teams": cmd_teams,
     }
 
     provider_commands = {

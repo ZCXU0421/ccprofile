@@ -40,9 +40,7 @@ DISABLE_FLAGS = [
     ("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "禁用非必要流量"),
 ]
 
-ENABLE_FLAGS = [
-    ("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", "启用 Agent Teams 模式"),
-]
+ENABLE_FLAGS = []
 
 HOOK_EVENTS = {
     "Notification": {

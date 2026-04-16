@@ -1,11 +1,11 @@
 """交互式菜单主循环。"""
 
-from .commands import cmd_add, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch
+from .commands import cmd_add, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch, _normalize_teams_flag
 from .constants import KEY_FILE, PROFILES_ENC
 from .provider import cmd_provider_add, cmd_provider_delete, cmd_provider_edit, cmd_provider_list, cmd_provider_show
-from .storage import load_meta, load_profiles, load_providers
+from .storage import load_meta, load_profiles, load_providers, read_settings, save_profiles, write_settings
 from .picker import pick_profile, pick_provider
-from .terminal import select_from_list
+from .terminal import confirm_action, select_from_list
 
 # ── 菜单结构定义 ──
 
@@ -13,6 +13,7 @@ MAIN_MENU = [
     ("switch",      "切换配置"),
     ("_view",       "查看配置 ←→"),
     ("_manage",     "管理配置 ←→"),
+    ("teams",       "切换 Teams 模式"),
     ("_provider",   "提供商管理 ←→"),
     ("_system",     "系统设置 ←→"),
     ("__exit__",    "退出"),
@@ -126,6 +127,35 @@ def interactive_menu():
             if name is None:
                 return
             args.name = name
+
+        if cmd_name == "teams":
+            meta = load_meta()
+            active = meta.get("active")
+            if not active:
+                print("错误: 当前无活动配置。")
+                return
+            profiles = load_profiles()
+            if active not in profiles:
+                print(f"错误: 活动配置 '{active}' 不存在。")
+                return
+            profile = profiles[active]
+            _normalize_teams_flag(profile)
+            current = profile.get("enableTeams", False)
+            new_state = confirm_action("启用 Agent Teams 模式", default_yes=current)
+            profile["enableTeams"] = new_state
+            profiles[active] = profile
+            save_profiles(profiles)
+            status = "已启用" if new_state else "已禁用"
+            print(f"配置 '{active}' 的 Agent Teams 模式{status}。")
+            settings = read_settings()
+            if "env" not in settings:
+                settings["env"] = {}
+            if new_state:
+                settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+            else:
+                settings["env"].pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
+            write_settings(settings)
+            return
 
         try:
             commands_map[cmd_name](args)

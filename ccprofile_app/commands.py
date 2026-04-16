@@ -35,6 +35,14 @@ from .storage import (
 )
 
 
+def _normalize_teams_flag(profile):
+    """统一处理 enableTeams 字段，兼容旧格式。"""
+    if "enableTeams" in profile:
+        return
+    env = profile.get("env", {})
+    profile["enableTeams"] = env.pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None) == "1"
+
+
 def cmd_init(_args):
     """初始化：生成加密密钥。"""
     from .constants import KEY_FILE, PROVIDERS_ENC
@@ -101,8 +109,6 @@ def cmd_add(args):
             if args.disable_all:
                 for flag, _ in DISABLE_FLAGS:
                     profile["env"][flag] = "1"
-            if args.enable_teams:
-                profile["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
             # Hooks 配置
             if args.hooks_json:
                 try:
@@ -121,6 +127,10 @@ def cmd_add(args):
             print(f"添加配置 '{name}'。按回车使用默认值。")
             profile = prompt_profile_fields()
         profile["mode"] = "single"
+
+    # --enable-teams 在所有模式下都生效
+    if args.enable_teams:
+        profile["enableTeams"] = True
 
     profiles[name] = profile
     save_profiles(profiles)
@@ -142,6 +152,7 @@ def cmd_switch(args):
 
     profile = profiles[name]
     mode = profile.get("mode", "single")
+    _normalize_teams_flag(profile)
 
     # 备份当前 settings.json
     backup_settings()
@@ -213,6 +224,10 @@ def cmd_switch(args):
         for key, value in profile.get("env", {}).items():
             settings["env"][key] = value
 
+    # 写入 Teams 模式环境变量
+    if profile.get("enableTeams"):
+        settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+
     if "model" in profile:
         settings["model"] = profile["model"]
     if "effortLevel" in profile:
@@ -228,6 +243,10 @@ def cmd_switch(args):
             settings["hooks"] = hooks_cfg
 
     write_settings(settings)
+
+    # 保存迁移后的 profile（如果格式有变化）
+    profiles[name] = profile
+    save_profiles(profiles)
 
     meta = load_meta()
     meta["active"] = name
@@ -250,6 +269,7 @@ def cmd_list(_args):
     body = []
     profile_items = list(profiles.items())
     for idx, (name, prof) in enumerate(profile_items):
+        _normalize_teams_flag(prof)
         is_active = (name == active)
         prefix = active_marker() if is_active else "  "
         mode = prof.get("mode", "single")
@@ -260,6 +280,8 @@ def cmd_list(_args):
             mode_tag = f"单一 · {prof.get('model', '?')}"
 
         line1 = f"{prefix}{name}{' *' if is_active else ''}    {mode_tag}"
+        if prof.get("enableTeams"):
+            line1 += "    👥 Teams"
         if "hooks" in prof:
             line1 += "    \U0001f514"
         body.append(line1)
@@ -290,6 +312,7 @@ def cmd_show(args):
         sys.exit(1)
 
     prof = profiles[name]
+    _normalize_teams_flag(prof)
     mode = prof.get("mode", "single")
     mode_label = "混合模式" if mode == "mixed" else "单一模式"
 
@@ -297,6 +320,8 @@ def cmd_show(args):
     body.append("")
     body.append(kv("模型", prof.get("model", "N/A")))
     body.append(kv("努力等级", prof.get("effortLevel", "high")))
+    teams_status = f"{GREEN}✓ 已启用{RESET}" if prof.get("enableTeams") else f"{DIM}未启用{RESET}"
+    body.append(kv("Teams 模式", teams_status))
     body.append("")
 
     if mode == "mixed":
@@ -370,15 +395,28 @@ def cmd_edit(args):
         sys.exit(1)
 
     old = profiles[name]
+    _normalize_teams_flag(old)
     mode = old.get("mode", "single")
+    old_teams = old.get("enableTeams")
 
-    print(f"编辑配置 '{name}'。按回车保留当前值。")
-    if mode == "mixed":
-        profile = prompt_mixed_profile_fields(old)
-        profile["mode"] = "mixed"
+    # 仅切换 Teams flag 时跳过交互流程
+    teams_only = (getattr(args, "enable_teams", False) or getattr(args, "disable_teams", False))
+    if teams_only:
+        profile = dict(old)
     else:
-        profile = prompt_profile_fields(old)
-        profile["mode"] = "single"
+        print(f"编辑配置 '{name}'。按回车保留当前值。")
+        if mode == "mixed":
+            profile = prompt_mixed_profile_fields(old)
+            profile["mode"] = "mixed"
+        else:
+            profile = prompt_profile_fields(old)
+            profile["mode"] = "single"
+        profile["enableTeams"] = old_teams
+    # CLI flags override
+    if getattr(args, "enable_teams", False):
+        profile["enableTeams"] = True
+    if getattr(args, "disable_teams", False):
+        profile["enableTeams"] = False
 
     profiles[name] = profile
     save_profiles(profiles)
@@ -429,6 +467,7 @@ def cmd_current(_args):
         return
 
     prof = profiles[active]
+    _normalize_teams_flag(prof)
     mode = prof.get("mode", "single")
     mode_label = "混合模式" if mode == "mixed" else "单一模式"
     title = f"{active_marker()}{active}"
@@ -436,11 +475,15 @@ def cmd_current(_args):
     body = []
     body.append("")
 
+    teams_status = f"{GREEN}✓ 已启用{RESET}" if prof.get("enableTeams") else f"{DIM}未启用{RESET}"
+
     if mode == "mixed":
         proxy_info = get_proxy_info()
         body.append(status_dot(proxy_info["running"]))
         if proxy_info["running"]:
             body.append(f"PID: {proxy_info['pid']}  端口: {proxy_info.get('port', 'N/A')}")
+        body.append("")
+        body.append(kv("Teams 模式", teams_status))
         body.append("")
         # 模型映射子面板
         mapping_lines = []
@@ -450,6 +493,7 @@ def cmd_current(_args):
     else:
         body.append(kv("模型", prof.get("model", "N/A")))
         body.append(kv("努力等级", prof.get("effortLevel", "high")))
+        body.append(kv("Teams 模式", teams_status))
         url = prof.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
         body.append(kv("API 地址", url))
 
@@ -486,3 +530,49 @@ def cmd_proxy_logs(args):
 
     lines = getattr(args, "lines", 50)
     show_proxy_logs(lines)
+
+
+def cmd_teams(args):
+    """切换当前配置的 Agent Teams 模式。"""
+    meta = load_meta()
+    active = meta.get("active")
+    if not active:
+        print("错误: 当前无活动配置。请先使用 'switch' 切换到某个配置。")
+        sys.exit(1)
+
+    profiles = load_profiles()
+    if active not in profiles:
+        print(f"错误: 活动配置 '{active}' 不存在。")
+        sys.exit(1)
+
+    profile = profiles[active]
+    _normalize_teams_flag(profile)
+
+    action = getattr(args, "action", "toggle") or "toggle"
+    if action == "on":
+        profile["enableTeams"] = True
+    elif action == "off":
+        profile["enableTeams"] = False
+    else:  # toggle
+        profile["enableTeams"] = not profile.get("enableTeams", False)
+
+    profiles[active] = profile
+    save_profiles(profiles)
+
+    status = "已启用" if profile["enableTeams"] else "已禁用"
+    print(f"配置 '{active}' 的 Agent Teams 模式{status}。")
+
+    if args.apply:
+        _apply_teams_to_settings(profile, active)
+
+
+def _apply_teams_to_settings(profile, name):
+    """将 Teams 状态应用到 settings.json，无需完整 switch。"""
+    settings = read_settings()
+    if "env" not in settings:
+        settings["env"] = {}
+    if profile.get("enableTeams"):
+        settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+    else:
+        settings["env"].pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
+    write_settings(settings)

@@ -73,12 +73,13 @@ def prompt_profile_fields(defaults=None):
         if confirm_action(f"禁用: {desc}", default_yes=default_on):
             result["env"][flag] = "1"
 
-    print("  启用选项:")
-    for flag, desc in ENABLE_FLAGS:
-        cur = env_defaults.get(flag)
-        default_on = str(cur) == "1" if cur is not None else False
-        if confirm_action(f"启用: {desc}", default_yes=default_on):
-            result["env"][flag] = "1"
+    if ENABLE_FLAGS:
+        print("  启用选项:")
+        for flag, desc in ENABLE_FLAGS:
+            cur = env_defaults.get(flag)
+            default_on = str(cur) == "1" if cur is not None else False
+            if confirm_action(f"启用: {desc}", default_yes=default_on):
+                result["env"][flag] = "1"
 
     # 推送通知配置
     print("  推送通知配置 (留空跳过):")
