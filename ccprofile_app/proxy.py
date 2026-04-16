@@ -20,12 +20,19 @@ from urllib.parse import urlsplit, urlunsplit
 
 # ── 本地常量（不依赖其他模块）──
 
-# Claude Code 模型槽位的默认前缀。
+# 虚拟模型前缀（主路径）
+_DEFAULT_VIRTUAL_MODEL_PREFIX = "ccprofile"
+
+# Claude Code 模型槽位的默认前缀（仅作为 fallback）
 # 代理从 proxy_config.json 读取前缀配置，此字典仅作为后备。
-_DEFAULT_MODEL_SLOT_PREFIXES = {
-    "opus": "claude-opus",
-    "sonnet": "claude-sonnet",
-    "haiku": "claude-haiku",
+_DEFAULT_LEGACY_MODEL_SLOT_PREFIXES = {
+    "opus": ("claude-opus",),
+    "sonnet": ("claude-sonnet",),
+    "haiku": (
+        "claude-haiku",
+        "claude-3-haiku",
+        "claude-3-5-haiku",
+    ),
 }
 
 # 默认配置文件路径
@@ -64,7 +71,8 @@ class ProxyConfig:
     def __init__(self, config_path: Optional[Path] = None):
         self.config_path = config_path or DEFAULT_CONFIG_PATH
         self.config = None
-        self._model_slot_prefixes = dict(_DEFAULT_MODEL_SLOT_PREFIXES)
+        self._virtual_model_prefix = _DEFAULT_VIRTUAL_MODEL_PREFIX
+        self._legacy_model_slot_prefixes = dict(_DEFAULT_LEGACY_MODEL_SLOT_PREFIXES)
         self._load_config()
 
     def _load_config(self):
@@ -79,15 +87,27 @@ class ProxyConfig:
             print(f"错误: 代理配置文件格式错误: {e}", file=sys.stderr)
             sys.exit(1)
 
-        # Read model slot prefixes from config (written by ccprofile switch)
-        if "model_slot_prefixes" in self.config:
-            self._model_slot_prefixes = self.config["model_slot_prefixes"]
+        # 读取虚拟模型前缀（主路径）
+        self._virtual_model_prefix = self.config.get(
+            "virtual_model_prefix",
+            self._virtual_model_prefix,
+        )
+
+        # 读取 legacy 前缀配置（fallback）
+        if "legacy_model_slot_prefixes" in self.config:
+            self._legacy_model_slot_prefixes = self.config["legacy_model_slot_prefixes"]
+        elif "model_slot_prefixes" in self.config:
+            # 兼容旧版 proxy_config.json
+            self._legacy_model_slot_prefixes = {
+                slot: (prefix,)
+                for slot, prefix in self.config["model_slot_prefixes"].items()
+            }
 
     def get_model_target(self, model: str) -> Optional[Dict[str, Any]]:
         """根据模型名称获取目标提供商和模型。
 
         Args:
-            model: Claude Code 请求中的 model 字段，如 "claude-opus-4-5-20251101"
+            model: Claude Code 请求中的 model 字段，如 "ccprofile-opus"
 
         Returns:
             包含 provider, model, base_url, api_key 的字典，或 None
@@ -97,9 +117,18 @@ class ProxyConfig:
 
         model_mapping = self.config.get("model_mapping", {})
 
-        # 前缀匹配
-        for slot, prefix in self._model_slot_prefixes.items():
-            if model.startswith(prefix):
+        # 主路径：匹配虚拟模型名 ccprofile-{slot}
+        virtual_prefix = f"{self._virtual_model_prefix}-"
+        if model.startswith(virtual_prefix):
+            slot = model[len(virtual_prefix):]
+            if slot in model_mapping:
+                return model_mapping.get(slot)
+
+        # Fallback：匹配旧的 Claude 模型名前缀
+        for slot, prefixes in self._legacy_model_slot_prefixes.items():
+            if isinstance(prefixes, str):
+                prefixes = (prefixes,)
+            if any(model.startswith(prefix) for prefix in prefixes):
                 return model_mapping.get(slot)
 
         return None

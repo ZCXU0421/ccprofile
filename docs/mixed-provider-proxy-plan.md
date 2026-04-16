@@ -4,6 +4,8 @@
 
 允许用户配置多个 API 提供商（智谱、MiniMax、自定义），将不同提供商的模型映射到 Claude Code 的模型槽位（opus/sonnet/haiku），通过本地代理服务器实现请求路由。
 
+混合模式混合的是 `base_url + api_key` 形式的 API provider，不混合 Claude Code Coding Plan 订阅。Claude Code 官方订阅不是普通 Anthropic API key，切换到本地代理后，请求会走 `ANTHROPIC_BASE_URL=http://localhost:{port}`，因此不能把某个槽位继续保留在 Claude Code 官方订阅通道里。
+
 **示例场景**: zhipu glm-5.1 → opus, minimax m2.7 → haiku, zhipu glm-4-flash → sonnet
 
 **协议**: Anthropic Messages API 原生格式，代理只做路由转发，不做格式转换。
@@ -72,6 +74,7 @@
 ```python
 {
     "port": 18888,
+    "virtual_model_prefix": "ccprofile",
     "model_mapping": {
         "opus":   {"provider": "zhipu",   "model": "glm-5.1", "base_url": "...", "api_key": "..."},
         "sonnet": {"provider": "zhipu",   "model": "glm-4-flash", "base_url": "...", "api_key": "..."},
@@ -96,11 +99,19 @@
 ### 2.1 核心流程
 
 ```
+ccprofile switch mixed profile
+    ↓ 写入 settings.json
+      ANTHROPIC_BASE_URL=http://localhost:18888
+      ANTHROPIC_AUTH_TOKEN=ccprofile-proxy
+      ANTHROPIC_DEFAULT_OPUS_MODEL=ccprofile-opus
+      ANTHROPIC_DEFAULT_SONNET_MODEL=ccprofile-sonnet
+      ANTHROPIC_DEFAULT_HAIKU_MODEL=ccprofile-haiku
+    ↓
 Claude Code
-    ↓ POST /v1/messages (model: "claude-opus-4-5-20251101")
+    ↓ POST /v1/messages (model: "ccprofile-opus")
     ↓
 本地代理 (localhost:18888)
-    ↓ 读取 model 字段 → 查找 model_mapping
+    ↓ 读取 model 字段 → 解析虚拟模型名 → 查找 model_mapping
     ↓ model_mapping.opus → provider=zhipu, model=glm-5.1
     ↓ 替换 model 字段为 "glm-5.1"
     ↓ 替换认证 header 为 zhipu 的 api_key
@@ -115,22 +126,53 @@ POST https://open.bigmodel.cn/api/paas/v4/v1/messages
 使用 Python 标准库 `http.server` + `http.client`，零额外依赖：
 
 - **请求接收**: `BaseHTTPRequestHandler.do_POST` 处理 `/v1/messages`
-- **模型路由**: 解析请求体 JSON 的 `model` 字段，匹配 model_mapping
+- **模型路由**: 解析请求体 JSON 的 `model` 字段，将 `ccprofile-*` 虚拟模型名映射到 model_mapping
 - **请求转发**: `http.client` 转发到目标 provider（支持 streaming）
 - **SSE 流式**: 逐块读取响应并写回客户端（chunked transfer）
 - **错误处理**: provider 不可达时返回 Anthropic 格式错误响应
 
-### 2.3 模型匹配逻辑
+### 2.3 模型路由调整
 
-Claude Code 请求中的 model 字段可能是：
-- `claude-opus-4-5-20251101` (具体版本)
-- `claude-sonnet-4-20250514`
-- `claude-haiku-3-5-20241022`
+当前实现按 Claude 官方模型 ID 前缀反推槽位，例如 `claude-opus-*`、`claude-sonnet-*`、`claude-haiku-*`。这个方案存在两个问题：
 
-匹配规则：从 model_mapping 的 key 中做前缀匹配：
-- `claude-opus-*` → 映射到 `model_mapping["opus"]`
-- `claude-sonnet-*` → 映射到 `model_mapping["sonnet"]`
-- `claude-haiku-*` → 映射到 `model_mapping["haiku"]`
+1. Claude / Anthropic 模型 ID 会演进，例如当前 Haiku 模型可能是 `claude-3-5-haiku-20241022`，不匹配旧的 `claude-haiku` 前缀。
+2. 混合模式不能混用 Claude Code Coding Plan 订阅，因此保留 Claude 官方模型名没有实际订阅通道上的收益，反而让 ccprofile 依赖外部命名规则。
+
+调整后的主路径使用 ccprofile 自己控制的虚拟模型名：
+
+| Claude Code 请求 model | 路由槽位 | 目标 |
+|------------------------|----------|------|
+| `ccprofile-opus` | `opus` | `model_mapping["opus"]` |
+| `ccprofile-sonnet` | `sonnet` | `model_mapping["sonnet"]` |
+| `ccprofile-haiku` | `haiku` | `model_mapping["haiku"]` |
+
+`ccprofile switch <mixed-profile>` 写入 `settings.json` 时，应同时设置：
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:18888",
+    "ANTHROPIC_AUTH_TOKEN": "ccprofile-proxy",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "ccprofile-opus",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "ccprofile-sonnet",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "ccprofile-haiku"
+  }
+}
+```
+
+代理只把虚拟模型名作为槽位选择信号，真实上游模型仍以 mixed profile 的 `model_mapping` 为准。这样配置的唯一真相是：
+
+```
+ccprofile-opus   -> model_mapping.opus.provider/model
+ccprofile-sonnet -> model_mapping.sonnet.provider/model
+ccprofile-haiku  -> model_mapping.haiku.provider/model
+```
+
+兼容策略：
+
+- 主路径只要求支持 `ccprofile-opus`、`ccprofile-sonnet`、`ccprofile-haiku`。
+- 可以保留旧的 Claude 模型名前缀匹配作为兼容 fallback，避免用户手动指定旧模型名时立刻失败。
+- fallback 不应作为文档推荐路径，也不应阻止未来移除 `MODEL_SLOT_PREFIXES`。
 
 ### 2.4 代理进程管理
 
@@ -140,7 +182,12 @@ switch 混合 profile:
   2. 检查 proxy.pid 是否有运行中代理 → 有则 kill
   3. subprocess.Popen 启动代理（detached, 输出重定向到 proxy.log）
   4. 等待端口就绪（轮询最多 3 秒）
-  5. 写入 settings.json: ANTHROPIC_BASE_URL = "http://localhost:{port}"
+  5. 写入 settings.json:
+     - ANTHROPIC_BASE_URL = "http://localhost:{port}"
+     - ANTHROPIC_AUTH_TOKEN = "ccprofile-proxy"
+     - ANTHROPIC_DEFAULT_OPUS_MODEL = "ccprofile-opus"
+     - ANTHROPIC_DEFAULT_SONNET_MODEL = "ccprofile-sonnet"
+     - ANTHROPIC_DEFAULT_HAIKU_MODEL = "ccprofile-haiku"
 
 switch 单一 profile:
   1. 检查 proxy.pid → 有则 kill
@@ -220,9 +267,9 @@ ccprofile switch my-single              # 自动停止代理
 
 | 文件 | 变更内容 |
 |------|----------|
-| `constants.py` | 新增路径（PROVIDERS_ENC, PROXY_*），PROVIDER_FIELDS 定义，MODEL_SLOTS 定义 |
+| `constants.py` | 新增路径（PROVIDERS_ENC, PROXY_*），PROVIDER_FIELDS 定义，MODEL_SLOTS 定义，VIRTUAL_MODEL_PREFIX 定义 |
 | `storage.py` | 新增 load_providers()/save_providers()，代理配置文件读写 |
-| `commands.py` | cmd_switch 增加混合模式分支（启动/停止代理）；cmd_add 支持 --mode mixed |
+| `commands.py` | cmd_switch 增加混合模式分支（启动/停止代理，并写入 ccprofile 虚拟模型名）；cmd_add 支持 --mode mixed |
 | `cli.py` | 新增 provider/ proxy 子命令组 |
 | `menu.py` | 新增提供商管理子菜单；add 流程增加模式选择 |
 | `prompts.py` | 新增 prompt_mixed_profile_fields()、prompt_provider_fields() |
@@ -241,6 +288,7 @@ ccprofile switch my-single              # 自动停止代理
 ### Step 1: 基础设施 — constants.py + storage.py 扩展
 - 新增 PROVIDERS_ENC, PROXY_PID, PROXY_CONFIG, PROXY_LOG, PROXY_PORT 路径常量
 - 新增 PROVIDER_FIELDS, MODEL_SLOTS 定义
+- 新增 VIRTUAL_MODEL_PREFIX = "ccprofile"，并约定虚拟模型名为 `ccprofile-{slot}`
 - storage.py 增加 load_providers(), save_providers()（使用相同加密体系）
 - storage.py 增加 proxy_config 读写函数
 
@@ -257,7 +305,8 @@ ccprofile switch my-single              # 自动停止代理
 
 ### Step 4: 本地代理 — proxy.py
 - 实现 Anthropic Messages API 代理
-- 模型路由（前缀匹配 claude-opus-* / claude-sonnet-* / claude-haiku-*）
+- 模型路由主路径：`ccprofile-opus` / `ccprofile-sonnet` / `ccprofile-haiku`
+- 可选兼容 fallback：继续识别旧的 Claude 模型名前缀
 - SSE 流式转发
 - 错误处理
 
@@ -269,12 +318,19 @@ ccprofile switch my-single              # 自动停止代理
 
 ### Step 6: Switch 集成 — commands.py
 - cmd_switch 增加混合模式分支
-- 混合模式：写 proxy_config → 启动代理 → 设置 localhost URL
+- 混合模式：写 proxy_config → 启动代理 → 设置 localhost URL 和 `ccprofile-{slot}` 虚拟模型名
 - 单一模式：停止代理 → 设置 provider URL
 - cmd_list/cmd_show 适配混合模式显示
 
 ### Step 7: 代理管理命令 — cli.py
 - proxy status / stop / logs 子命令
+
+### Step 8: 迁移当前前缀匹配实现
+- `constants.py` 增加 `VIRTUAL_MODEL_PREFIX`，减少对 `MODEL_SLOT_PREFIXES` 的主路径依赖。
+- `commands.py` 在 mixed switch 中写入 `ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_HAIKU_MODEL`。
+- `proxy.py` 的 `get_model_target()` 优先解析 `ccprofile-{slot}`，再进入旧 Claude 前缀 fallback。
+- README 中混合模式说明改为“Claude Code 使用 ccprofile 虚拟模型名，代理按槽位转发到真实 provider/model”。
+- 添加或补充验证：`ccprofile-haiku` 能命中 haiku 槽位；`claude-3-5-haiku-20241022` 如果保留 fallback，也应命中 haiku 槽位。
 
 ## 六、依赖关系
 

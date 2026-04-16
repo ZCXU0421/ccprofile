@@ -124,7 +124,9 @@ ccprofile switch mixed-work
 ccprofile proxy status
 ```
 
-混合模式通过本地代理接收 Claude Code 的 `/v1/messages` 请求，按请求中的模型前缀选择目标提供商，并将请求转发出去。
+混合模式切换后，ccprofile 会把 Claude Code 的 opus/sonnet/haiku 默认模型设置为 `ccprofile-opus`、`ccprofile-sonnet`、`ccprofile-haiku`。Claude Code 请求本地代理时，代理按这些虚拟模型名选择 mixed profile 中配置的真实 provider/model。
+
+**注意**：混合模式不能混用 Claude Code Coding Plan 订阅；如需使用官方 Anthropic API，需要把 Anthropic API key 作为一个 provider 添加。
 
 ## 命令一览
 
@@ -223,7 +225,10 @@ ccprofile provider add <名称> \
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:18888",
-    "ANTHROPIC_AUTH_TOKEN": "ccprofile-proxy"
+    "ANTHROPIC_AUTH_TOKEN": "ccprofile-proxy",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "ccprofile-opus",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "ccprofile-sonnet",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "ccprofile-haiku"
   }
 }
 ```
@@ -340,13 +345,13 @@ ccprofile
 2. 读取并解密 provider 配置。
 3. 生成 `~/.ccprofile/proxy_config.json`。
 4. 停止旧代理并启动新的本地代理进程。
-5. 将 Claude Code 的 `ANTHROPIC_BASE_URL` 指向 `http://localhost:18888`。
-6. 请求到达代理后，按模型前缀路由：
+5. 将 Claude Code 的 `ANTHROPIC_BASE_URL` 指向 `http://localhost:18888`，并将 opus/sonnet/haiku 默认模型设置为 `ccprofile-opus`、`ccprofile-sonnet`、`ccprofile-haiku`。
+6. 请求到达代理后，按虚拟模型名路由：
 
 ```text
-claude-opus-*   -> model_mapping.opus
-claude-sonnet-* -> model_mapping.sonnet
-claude-haiku-*  -> model_mapping.haiku
+ccprofile-opus   -> model_mapping.opus
+ccprofile-sonnet -> model_mapping.sonnet
+ccprofile-haiku  -> model_mapping.haiku
 ```
 
 代理会替换请求体中的 `model` 字段和 provider 认证头，再把 Anthropic Messages 请求转发到目标 provider。流式响应会原样转发回 Claude Code。

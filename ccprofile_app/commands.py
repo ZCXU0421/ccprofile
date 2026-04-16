@@ -11,7 +11,9 @@ from .constants import (
     DEFAULT_PROXY_PORT,
     DISABLE_FLAGS,
     ENABLE_FLAGS,
-    MODEL_SLOT_PREFIXES,
+    LEGACY_MODEL_SLOT_PREFIXES,
+    VIRTUAL_MODEL_NAMES,
+    VIRTUAL_MODEL_PREFIX,
 )
 from .crypto import save_key
 from .formatting import mask_token
@@ -162,8 +164,9 @@ def cmd_switch(args):
         model_mapping = profile.get("model_mapping", {})
         proxy_config = {
             "port": profile.get("proxy_port", DEFAULT_PROXY_PORT),
+            "virtual_model_prefix": VIRTUAL_MODEL_PREFIX,
             "model_mapping": {},
-            "model_slot_prefixes": dict(MODEL_SLOT_PREFIXES),
+            "legacy_model_slot_prefixes": LEGACY_MODEL_SLOT_PREFIXES,
         }
 
         for slot, target in model_mapping.items():
@@ -194,6 +197,10 @@ def cmd_switch(args):
         settings["env"]["ANTHROPIC_BASE_URL"] = f"http://localhost:{port}"
         # 设置占位符 ANTHROPIC_AUTH_TOKEN（代理会忽略此值）
         settings["env"]["ANTHROPIC_AUTH_TOKEN"] = "ccprofile-proxy"
+        # 写入虚拟模型名，让 Claude Code 使用 ccprofile-opus/sonnet/haiku
+        settings["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] = VIRTUAL_MODEL_NAMES["opus"]
+        settings["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] = VIRTUAL_MODEL_NAMES["sonnet"]
+        settings["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = VIRTUAL_MODEL_NAMES["haiku"]
 
     else:
         # 单一模式：停止代理，直接设置

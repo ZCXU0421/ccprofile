@@ -73,13 +73,26 @@ PROVIDER_FIELDS = [
     ("models", "可用模型 (逗号分隔)", True, None),
 ]
 
-# Claude Code model slots and their name prefixes
+# Claude Code model slots
 MODEL_SLOTS = ["opus", "sonnet", "haiku"]
 
-MODEL_SLOT_PREFIXES = {
-    "opus": "claude-opus",
-    "sonnet": "claude-sonnet",
-    "haiku": "claude-haiku",
+# Virtual model names for ccprofile routing
+VIRTUAL_MODEL_PREFIX = "ccprofile"
+
+VIRTUAL_MODEL_NAMES = {
+    slot: f"{VIRTUAL_MODEL_PREFIX}-{slot}"
+    for slot in MODEL_SLOTS
+}
+
+# Legacy Claude model name prefixes (fallback only)
+LEGACY_MODEL_SLOT_PREFIXES = {
+    "opus": ("claude-opus",),
+    "sonnet": ("claude-sonnet",),
+    "haiku": (
+        "claude-haiku",
+        "claude-3-haiku",
+        "claude-3-5-haiku",
+    ),
 }
 
 # Env keys that ccprofile manages in settings.json
