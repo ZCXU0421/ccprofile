@@ -9,10 +9,13 @@ set -e
 
 INSTALL_DIR="$HOME/.local/bin"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RELEASES_URL="https://github.com/ZCXU0421/ccprofile/releases/latest/download"
+RELEASES_URL="${CCPROFILE_RELEASES_URL:-https://github.com/ZCXU0421/ccprofile/releases/latest/download}"
 CHECKSUMS_NAME="SHA256SUMS"
 TMP_FILE=""
 TMP_CHECKSUM=""
+TMP_DIR=""
+BINARY=""
+BUNDLE_DIR=""
 
 download_file() {
     local url="$1"
@@ -34,6 +37,9 @@ cleanup_temp_files() {
     fi
     if [ -n "$TMP_CHECKSUM" ] && [ -f "$TMP_CHECKSUM" ]; then
         rm -f "$TMP_CHECKSUM"
+    fi
+    if [ -n "$TMP_DIR" ] && [ -d "$TMP_DIR" ]; then
+        rm -rf "$TMP_DIR"
     fi
 }
 
@@ -73,10 +79,13 @@ echo "  ccprofile installer"
 echo "========================================"
 echo ""
 
-# Determine the binary name — check local paths first
-BINARY=""
+# Determine the binary name — check local paths first.
+# PyInstaller onedir builds need the whole directory, not only the executable.
 for DIR in "$SCRIPT_DIR/dist" "$SCRIPT_DIR"; do
-    if [ -f "$DIR/ccprofile" ]; then
+    if [ -f "$DIR/ccprofile/ccprofile" ]; then
+        BUNDLE_DIR="$DIR/ccprofile"
+        break
+    elif [ -f "$DIR/ccprofile" ]; then
         BINARY="$DIR/ccprofile"
         break
     elif [ "$(uname -s)" = "Darwin" ]; then
@@ -96,19 +105,21 @@ for DIR in "$SCRIPT_DIR/dist" "$SCRIPT_DIR"; do
     fi
 done
 
-# If no local binary, download from GitHub Releases
-if [ -z "$BINARY" ]; then
+# If no local binary or bundle, download from GitHub Releases.
+# Release assets are archives because PyInstaller onedir builds must keep
+# the executable next to its _internal directory.
+if [ -z "$BINARY" ] && [ -z "$BUNDLE_DIR" ]; then
     echo "[INFO] No local binary found, downloading from GitHub Releases..."
 
     REMOTE_NAME=""
     if [ "$(uname -s)" = "Darwin" ]; then
         if [ "$(uname -m)" = "arm64" ]; then
-            REMOTE_NAME="ccprofile-macos-arm64"
+            REMOTE_NAME="ccprofile-macos-arm64.tar.gz"
         else
-            REMOTE_NAME="ccprofile-macos-intel"
+            REMOTE_NAME="ccprofile-macos-intel.tar.gz"
         fi
     elif [ "$(uname -s)" = "Linux" ]; then
-        REMOTE_NAME="ccprofile-linux"
+        REMOTE_NAME="ccprofile-linux.tar.gz"
     else
         echo "[ERROR] Unsupported OS: $(uname -s)"
         exit 1
@@ -135,8 +146,21 @@ if [ -z "$BINARY" ]; then
         exit 1
     fi
 
-    BINARY="$TMP_FILE"
-    chmod +x "$TMP_FILE"
+    TMP_DIR="$(mktemp -d)"
+    echo "  Extracting $REMOTE_NAME ..."
+    if ! tar -xzf "$TMP_FILE" -C "$TMP_DIR"; then
+        echo "[ERROR] Failed to extract $REMOTE_NAME."
+        exit 1
+    fi
+
+    if [ -f "$TMP_DIR/ccprofile/ccprofile" ]; then
+        BUNDLE_DIR="$TMP_DIR/ccprofile"
+    else
+        echo "[ERROR] Archive layout is invalid: missing ccprofile/ccprofile."
+        exit 1
+    fi
+
+    chmod +x "$BUNDLE_DIR/ccprofile"
     echo "  Download verified."
     echo ""
 fi
@@ -145,10 +169,29 @@ fi
 mkdir -p "$INSTALL_DIR"
 echo "[1/3] Install directory: $INSTALL_DIR"
 
-# Copy and set permissions
-cp "$BINARY" "$INSTALL_DIR/ccprofile"
-chmod +x "$INSTALL_DIR/ccprofile"
-echo "[2/3] Installed ccprofile to $INSTALL_DIR/ccprofile"
+# Copy and set permissions. For onedir builds, keep the bundle intact and
+# install a small wrapper on PATH so PyInstaller can find its _internal files.
+if [ -n "$BUNDLE_DIR" ]; then
+    DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
+    APP_DIR="$DATA_DIR/ccprofile"
+
+    rm -rf "$APP_DIR"
+    mkdir -p "$DATA_DIR"
+    cp -R "$BUNDLE_DIR" "$APP_DIR"
+    chmod +x "$APP_DIR/ccprofile"
+
+    cat > "$INSTALL_DIR/ccprofile" <<EOF
+#!/usr/bin/env bash
+exec "$APP_DIR/ccprofile" "\$@"
+EOF
+    chmod +x "$INSTALL_DIR/ccprofile"
+    echo "[2/3] Installed ccprofile bundle to $APP_DIR"
+    echo "      Wrapper: $INSTALL_DIR/ccprofile"
+else
+    cp "$BINARY" "$INSTALL_DIR/ccprofile"
+    chmod +x "$INSTALL_DIR/ccprofile"
+    echo "[2/3] Installed ccprofile to $INSTALL_DIR/ccprofile"
+fi
 
 # Add to PATH in shell config — detect the user's login shell, not the
 # shell that happens to be running this script (e.g. bash invoked on macOS).

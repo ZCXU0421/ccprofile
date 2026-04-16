@@ -4,7 +4,9 @@ import socket
 import sys
 
 from .constants import DISABLE_FLAGS, ENABLE_FLAGS, FIELDS, MODEL_SLOTS, PROVIDER_FIELDS
+from .display import DIM, RESET
 from .storage import load_providers
+from .terminal import confirm_action, select_from_list
 
 
 def prompt_profile_fields(defaults=None):
@@ -14,10 +16,45 @@ def prompt_profile_fields(defaults=None):
     result = {"env": {}}
 
     for key, label, required, default in FIELDS:
-        if key in ("model", "effortLevel"):
-            current = defaults.get(key)
-        else:
-            current = env_defaults.get(key)
+        # 模型选择：使用箭头选择
+        if key == "model":
+            current_val = defaults.get("model") or default
+            items = [
+                ("opus",   "Opus"),
+                ("sonnet",  "Sonnet"),
+                ("haiku",   "Haiku"),
+            ]
+            default_idx = 0
+            for i, (v, _) in enumerate(items):
+                if v == current_val:
+                    default_idx = i
+                    break
+            value = select_from_list(items, f"选择{label}", default_index=default_idx)
+            if value is None:
+                value = current_val
+            result["model"] = value
+            continue
+
+        # 努力等级选择：使用箭头选择
+        if key == "effortLevel":
+            current_val = defaults.get("effortLevel") or default
+            items = [
+                ("low",    "Low"),
+                ("medium", "Medium"),
+                ("high",   "High"),
+            ]
+            default_idx = 0
+            for i, (v, _) in enumerate(items):
+                if v == current_val:
+                    default_idx = i
+                    break
+            value = select_from_list(items, f"选择{label}", default_index=default_idx)
+            if value is None:
+                value = current_val
+            result["effortLevel"] = value
+            continue
+
+        current = env_defaults.get(key)
         display = current or default
         hint = f" [{display}]" if display else ""
         value = input(f"  {label}{hint}: ").strip()
@@ -27,35 +64,20 @@ def prompt_profile_fields(defaults=None):
             print(f"错误: {label} 为必填项。")
             sys.exit(1)
         if value is not None:
-            if key in ("model", "effortLevel"):
-                result[key] = value
-            else:
-                result["env"][key] = value
+            result["env"][key] = value
 
-    print("  禁用选项 (y/n，留空使用当前值):")
+    print("  禁用选项:")
     for flag, desc in DISABLE_FLAGS:
         cur = env_defaults.get(flag)
-        if cur is not None:
-            d = "y" if str(cur) == "1" else "n"
-        else:
-            d = "y"
-        value = input(f"    {desc} [{d}]: ").strip().lower()
-        if not value:
-            value = d
-        if value == "y":
+        default_on = str(cur) == "1" if cur is not None else True
+        if confirm_action(f"禁用: {desc}", default_yes=default_on):
             result["env"][flag] = "1"
 
-    print("  启用选项 (y/n，留空使用当前值):")
+    print("  启用选项:")
     for flag, desc in ENABLE_FLAGS:
         cur = env_defaults.get(flag)
-        if cur is not None:
-            d = "y" if str(cur) == "1" else "n"
-        else:
-            d = "n"
-        value = input(f"    {desc} [{d}]: ").strip().lower()
-        if not value:
-            value = d
-        if value == "y":
+        default_on = str(cur) == "1" if cur is not None else False
+        if confirm_action(f"启用: {desc}", default_yes=default_on):
             result["env"][flag] = "1"
 
     # 推送通知配置
@@ -114,13 +136,7 @@ def prompt_mixed_profile_fields(defaults=None):
 
     result = {}
     model_mapping = {}
-
-    # 显示可用提供商
-    print("  可用提供商:")
     provider_list = list(providers.items())
-    for idx, (name, prov) in enumerate(provider_list, 1):
-        models = ", ".join(prov.get("models", []))
-        print(f"    [{idx}] {name} - {models}")
 
     # 为每个模型槽位选择提供商和模型
     for slot in MODEL_SLOTS:
@@ -130,36 +146,19 @@ def prompt_mixed_profile_fields(defaults=None):
         default_model = default_mapping.get("model")
 
         # 选择提供商
-        while True:
-            if default_provider in providers:
-                prompt_text = (
-                    f"    选择提供商 (1-{len(provider_list)}，"
-                    f"回车保留 {default_provider}，0 跳过): "
-                )
-            else:
-                prompt_text = f"    选择提供商 (1-{len(provider_list)}，回车跳过): "
-            prov_choice = input(prompt_text).strip()
-            if not prov_choice:
-                if default_provider in providers:
-                    provider_name = default_provider
+        prov_items = [
+            (name, f"{name}  ({', '.join(prov.get('models', []))})")
+            for name, prov in provider_list
+        ]
+        prov_items.append(("_skip", "跳过此槽位"))
+        prov_default_idx = len(prov_items) - 1
+        if default_provider in providers:
+            for i, (n, _) in enumerate(prov_items):
+                if n == default_provider:
+                    prov_default_idx = i
                     break
-                print(f"    已跳过 {slot} 槽位。")
-                break
-            if prov_choice == "0":
-                print(f"    已跳过 {slot} 槽位。")
-                break
-            try:
-                prov_idx = int(prov_choice) - 1
-                if 0 <= prov_idx < len(provider_list):
-                    provider_name = provider_list[prov_idx][0]
-                    break
-                print(f"    错误: 请输入 1-{len(provider_list)} 之间的数字。")
-            except ValueError:
-                print(f"    错误: 请输入有效的数字。")
-
-        if not prov_choice and default_provider not in providers:
-            continue
-        if prov_choice == "0":
+        provider_name = select_from_list(prov_items, f"选择 {slot} 槽位的提供商", default_index=prov_default_idx)
+        if provider_name is None or provider_name == "_skip":
             continue
 
         # 选择模型
@@ -168,27 +167,20 @@ def prompt_mixed_profile_fields(defaults=None):
         if not available_models:
             print(f"    错误: 提供商 '{provider_name}' 没有可用模型，跳过此槽位。")
             continue
-        print(f"    {provider_name} 可用模型: {', '.join(available_models)}")
 
-        # 使用默认值（如果有）
-        default_model = default_model if default_provider == provider_name else None
-
-        while True:
-            model_hint = f" [{default_model}]" if default_model else ""
-            model_choice = input(f"    选择模型{model_hint}，回车跳过: ").strip()
-            if not model_choice and default_model:
-                model_choice = default_model
-            if not model_choice:
-                print(f"    已跳过 {slot} 槽位。")
-                break
-            if model_choice:
-                if model_choice in available_models:
-                    model_mapping[slot] = {
-                        "provider": provider_name,
-                        "model": model_choice,
-                    }
+        model_items = [(m, m) for m in available_models]
+        model_items.append(("_skip", "跳过此槽位"))
+        model_default_idx = len(model_items) - 1
+        if default_model and default_model in available_models:
+            for i, (m, _) in enumerate(model_items):
+                if m == default_model:
+                    model_default_idx = i
                     break
-                print(f"    错误: 模型 '{model_choice}' 不在可用列表中。")
+        model_choice = select_from_list(model_items, f"选择模型 ({provider_name})", default_index=model_default_idx)
+        if model_choice is None or model_choice == "_skip":
+            continue
+
+        model_mapping[slot] = {"provider": provider_name, "model": model_choice}
 
     if not model_mapping:
         print("错误: 混合配置至少需要配置一个模型槽位。")
@@ -202,16 +194,33 @@ def prompt_mixed_profile_fields(defaults=None):
     if model_default not in model_mapping:
         model_default = mapped_slots[0]
 
-    slot_options = "/".join(mapped_slots)
-    while True:
-        model = input(f"\n  默认模型 ({slot_options}) [{model_default}]: ").strip() or model_default
-        if model in model_mapping:
-            result["model"] = model
+    # 默认模型选择
+    slot_items = [(s, s) for s in mapped_slots]
+    model_default_idx = 0
+    for i, (s, _) in enumerate(slot_items):
+        if s == model_default:
+            model_default_idx = i
             break
-        print(f"  错误: 默认模型必须是已配置的槽位: {', '.join(mapped_slots)}。")
+    model = select_from_list(slot_items, "选择默认模型", default_index=model_default_idx)
+    if model is None:
+        model = mapped_slots[0]
+    result["model"] = model
 
+    # 努力等级选择
     effort_default = defaults.get("effortLevel", "high")
-    effort = input(f"  努力等级 (low/medium/high) [{effort_default}]: ").strip() or effort_default
+    effort_items = [
+        ("low",    "Low"),
+        ("medium", "Medium"),
+        ("high",   "High"),
+    ]
+    effort_default_idx = 2
+    for i, (v, _) in enumerate(effort_items):
+        if v == effort_default:
+            effort_default_idx = i
+            break
+    effort = select_from_list(effort_items, "选择努力等级", default_index=effort_default_idx)
+    if effort is None:
+        effort = effort_default
     result["effortLevel"] = effort
 
     # 推送通知配置（与单一模式相同）

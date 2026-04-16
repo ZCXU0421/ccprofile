@@ -15,16 +15,12 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact: ccprofile.exe
             platform: windows
           - os: macos-latest
-            artifact: ccprofile
             platform: macos-arm64
           - os: macos-13
-            artifact: ccprofile
             platform: macos-intel
           - os: ubuntu-22.04
-            artifact: ccprofile
             platform: linux
 
     runs-on: ${{ matrix.os }}
@@ -44,7 +40,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ccprofile-${{ matrix.platform }}
-          path: dist/${{ matrix.artifact }}
+          path: dist/ccprofile/**
 
   release:
     needs: build
@@ -57,32 +53,49 @@ jobs:
         with:
           path: artifacts
 
-      - name: Rename for clarity and bundle installers
+      - name: Package release assets and bundle installers
         run: |
+          set -euo pipefail
           mkdir release
+          mkdir -p staging
 
-          # Windows
-          if [ -f artifacts/ccprofile-windows/ccprofile.exe ]; then
-            cp artifacts/ccprofile-windows/ccprofile.exe release/ccprofile-windows.exe
-          fi
+          package_tar() {
+            platform="$1"
+            src="artifacts/ccprofile-$platform"
+            archive="release/ccprofile-$platform.tar.gz"
 
-          # macOS ARM64
-          if [ -f artifacts/ccprofile-macos-arm64/ccprofile ]; then
-            cp artifacts/ccprofile-macos-arm64/ccprofile release/ccprofile-macos-arm64
-            chmod +x release/ccprofile-macos-arm64
-          fi
+            if [ ! -f "$src/ccprofile" ]; then
+              echo "Skipping $platform: missing executable"
+              return
+            fi
 
-          # macOS Intel (optional, may not exist if runner unavailable)
-          if [ -f artifacts/ccprofile-macos-intel/ccprofile ]; then
-            cp artifacts/ccprofile-macos-intel/ccprofile release/ccprofile-macos-intel
-            chmod +x release/ccprofile-macos-intel
-          fi
+            rm -rf staging/ccprofile
+            mkdir -p staging/ccprofile
+            cp -R "$src"/. staging/ccprofile/
+            chmod +x staging/ccprofile/ccprofile
+            tar -C staging -czf "$archive" ccprofile
+          }
 
-          # Linux
-          if [ -f artifacts/ccprofile-linux/ccprofile ]; then
-            cp artifacts/ccprofile-linux/ccprofile release/ccprofile-linux
-            chmod +x release/ccprofile-linux
-          fi
+          package_zip() {
+            platform="$1"
+            src="artifacts/ccprofile-$platform"
+            archive="../release/ccprofile-$platform.zip"
+
+            if [ ! -f "$src/ccprofile.exe" ]; then
+              echo "Skipping $platform: missing executable"
+              return
+            fi
+
+            rm -rf staging/ccprofile
+            mkdir -p staging/ccprofile
+            cp -R "$src"/. staging/ccprofile/
+            (cd staging && zip -qr "$archive" ccprofile)
+          }
+
+          package_zip windows
+          package_tar macos-arm64
+          package_tar macos-intel
+          package_tar linux
 
           # Bundle installers
           cp install.sh release/install-macos.sh

@@ -72,22 +72,22 @@ def build_parser():
 
     # switch
     p_sw = sub.add_parser("switch", help="切换配置")
-    p_sw.add_argument("name", help="配置名称")
+    p_sw.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
 
     # list
     sub.add_parser("list", help="列出所有配置")
 
     # show
     p_show = sub.add_parser("show", help="显示配置详情")
-    p_show.add_argument("name", help="配置名称")
+    p_show.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
 
     # edit
     p_edit = sub.add_parser("edit", help="编辑配置")
-    p_edit.add_argument("name", help="配置名称")
+    p_edit.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
 
     # delete
     p_del = sub.add_parser("delete", help="删除配置")
-    p_del.add_argument("name", help="配置名称")
+    p_del.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
 
     # current
     sub.add_parser("current", help="显示当前活动配置")
@@ -108,15 +108,15 @@ def build_parser():
 
     # provider show
     p_prov_show = prov_sub.add_parser("show", help="显示提供商详情")
-    p_prov_show.add_argument("name", help="提供商名称")
+    p_prov_show.add_argument("name", nargs="?", default=None, help="提供商名称（省略则弹出选择）")
 
     # provider edit
     p_prov_edit = prov_sub.add_parser("edit", help="编辑提供商")
-    p_prov_edit.add_argument("name", help="提供商名称")
+    p_prov_edit.add_argument("name", nargs="?", default=None, help="提供商名称（省略则弹出选择）")
 
     # provider delete
     p_prov_delete = prov_sub.add_parser("delete", help="删除提供商")
-    p_prov_delete.add_argument("name", help="提供商名称")
+    p_prov_delete.add_argument("name", nargs="?", default=None, help="提供商名称（省略则弹出选择）")
 
     # proxy
     p_proxy = sub.add_parser("proxy", help="代理管理")

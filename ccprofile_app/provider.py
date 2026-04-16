@@ -4,8 +4,11 @@ import re
 import sys
 from urllib.parse import urlparse
 
+from .display import panel, kv, BOLD, DIM, RESET
 from .formatting import mask_token
+from .picker import pick_provider
 from .prompts import prompt_provider_fields
+from .terminal import confirm_action
 from .storage import load_profiles, load_providers, save_providers
 
 
@@ -102,37 +105,51 @@ def cmd_provider_list(_args):
         print("暂无提供商。")
         return
 
-    print(f"{'名称':<20} {'API 地址':<45} {'可用模型':<30}")
-    print("-" * 95)
+    body = []
     for name, prov in providers.items():
         url = prov.get("base_url", "N/A")
         models = ", ".join(prov.get("models", []))
-        # 截断过长的模型列表
-        if len(models) > 28:
-            models = models[:25] + "..."
-        print(f"{name:<20} {url:<45} {models:<30}")
+        body.append(f"{BOLD}{name}{RESET}")
+        body.append(f"  {DIM}{url}{RESET}")
+        body.append(f"  模型: {models}")
+        body.append("")
+
+    print(panel("提供商列表", f"共 {len(providers)} 个", body))
 
 
 def cmd_provider_show(args):
     """显示提供商详情。"""
     providers = load_providers()
     name = args.name
+    if name is None:
+        name = pick_provider("选择要查看的提供商")
+        if name is None:
+            return
 
     if name not in providers:
         print(f"错误: 提供商 '{name}' 不存在。")
         sys.exit(1)
 
     prov = providers[name]
-    print(f"提供商: {name}")
-    print(f"  API 地址:   {prov.get('base_url', 'N/A')}")
-    print(f"  API 密钥:   {mask_token(prov.get('api_key', ''))}")
-    print(f"  可用模型:   {', '.join(prov.get('models', []))}")
+    body = []
+    body.append("")
+    body.append(kv("API 地址", prov.get("base_url", "N/A")))
+    body.append(kv("API 密钥", mask_token(prov.get("api_key", ""))))
+    models = prov.get("models", [])
+    body.append(kv("可用模型", ", ".join(models) if models else f"{DIM}N/A{RESET}"))
+    body.append("")
+
+    print(panel(name, "提供商", body))
 
 
 def cmd_provider_edit(args):
     """编辑提供商。"""
     providers = load_providers()
     name = args.name
+    if name is None:
+        name = pick_provider("选择要编辑的提供商")
+        if name is None:
+            return
 
     if name not in providers:
         print(f"错误: 提供商 '{name}' 不存在。")
@@ -149,6 +166,10 @@ def cmd_provider_delete(args):
     """删除提供商。"""
     providers = load_providers()
     name = args.name
+    if name is None:
+        name = pick_provider("选择要删除的提供商")
+        if name is None:
+            return
 
     if name not in providers:
         print(f"错误: 提供商 '{name}' 不存在。")
@@ -168,8 +189,7 @@ def cmd_provider_delete(args):
         print("请先删除或修改这些配置后再删除提供商。")
         sys.exit(1)
 
-    ans = input(f"确认删除提供商 '{name}'？[y/N] ").strip().lower()
-    if ans != "y":
+    if not confirm_action(f"确认删除提供商 '{name}'？", default_yes=False):
         print("已取消。")
         return
 

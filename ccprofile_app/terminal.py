@@ -92,17 +92,22 @@ def _read_key():
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
-def select_from_list(items, prompt="请选择"):
+def select_from_list(items, prompt="请选择", default_index=0):
     """上下键选择菜单。items 为 [(key, display_text), ...]。返回 key 或 None。"""
     if not items:
         return None
+
+    if default_index < 0 or default_index >= len(items):
+        default_index = 0
 
     if not sys.stdin.isatty():
         # 非交互终端回退为编号输入
         print(f"  {prompt}:")
         for i, (_, text) in enumerate(items, 1):
             print(f"    {i}) {text}")
-        choice = input(f"  请选择 [1-{len(items)}]: ").strip()
+        choice = input(f"  请选择 [1-{len(items)}] (默认 {default_index + 1}): ").strip()
+        if not choice:
+            return items[default_index][0]
         if choice.isdigit():
             idx = int(choice) - 1
             if 0 <= idx < len(items):
@@ -110,7 +115,7 @@ def select_from_list(items, prompt="请选择"):
         return None
 
     _enable_vt_mode()
-    selected = 0
+    selected = default_index
     rendered = False
     line_count = len(items) + 1
 
@@ -150,3 +155,23 @@ def select_from_list(items, prompt="请选择"):
             sys.stdout.write(f"  已取消\n")
             sys.stdout.flush()
             return None
+
+
+def confirm_action(prompt_text, default_yes=True):
+    """是/否确认，箭头选择。返回 bool。非 TTY 时回退为 input y/N。"""
+    if not sys.stdin.isatty():
+        # 非交互终端回退为文本输入
+        hint = "[Y/n]" if default_yes else "[y/N]"
+        ans = input(f"  {prompt_text} {hint}: ").strip().lower()
+        if default_yes:
+            return ans != "n"
+        return ans == "y"
+
+    items = [
+        (True,  "是"),
+        (False, "否"),
+    ]
+    result = select_from_list(items, prompt_text, default_index=0 if default_yes else 1)
+    if result is None:  # Esc
+        return False
+    return result

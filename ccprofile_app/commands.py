@@ -16,8 +16,11 @@ from .constants import (
     VIRTUAL_MODEL_PREFIX,
 )
 from .crypto import save_key
+from .display import panel, kv, status_dot, active_marker, CYAN, GREEN, RED, BOLD, DIM, RESET
 from .formatting import mask_token
-from .hooks import mask_bark_key, generate_hooks
+from .hooks import generate_hooks
+from .picker import pick_profile, pick_provider
+from .terminal import confirm_action
 from .prompts import prompt_mixed_profile_fields, prompt_profile_fields
 from .proxy_process import get_proxy_info, start_proxy, stop_proxy
 from .storage import (
@@ -37,16 +40,12 @@ def cmd_init(_args):
     from .constants import KEY_FILE, PROVIDERS_ENC
 
     if KEY_FILE.exists():
-        ans = input("密钥文件已存在。重新生成将导致现有配置不可读！继续？[y/N] ").strip().lower()
-        if ans != "y":
+        if not confirm_action("密钥文件已存在。重新生成将导致现有配置不可读！继续？", default_yes=False):
             print("已取消。")
             return
 
     if PROVIDERS_ENC.exists():
-        ans = input(
-            "重新初始化将删除现有提供商配置 providers.enc。确认删除？[y/N] "
-        ).strip().lower()
-        if ans != "y":
+        if not confirm_action("重新初始化将删除现有提供商配置 providers.enc。确认？", default_yes=False):
             print("已取消。")
             return
 
@@ -132,6 +131,10 @@ def cmd_switch(args):
     """切换到指定配置。"""
     profiles = load_profiles()
     name = args.name
+    if name is None:
+        name = pick_profile("选择要切换的配置")
+        if name is None:
+            return
 
     if name not in profiles:
         print(f"错误: 配置 '{name}' 不存在。")
@@ -244,38 +247,43 @@ def cmd_list(_args):
         print("暂无配置。")
         return
 
-    print(f"{'':2} {'名称':<18} {'模式':<8} {'URL/映射':<38} {'模型':<8} {'通知':<4}")
-    print("-" * 82)
-    for name, prof in profiles.items():
-        mark = "*" if name == active else " "
+    body = []
+    profile_items = list(profiles.items())
+    for idx, (name, prof) in enumerate(profile_items):
+        is_active = (name == active)
+        prefix = active_marker() if is_active else "  "
         mode = prof.get("mode", "single")
-        mode_text = "混合" if mode == "mixed" else "单一"
-        model = prof.get("model", "N/A")
-        notify = "\U0001f514" if "hooks" in prof else ""
 
         if mode == "mixed":
-            # 显示模型映射
-            mapping = prof.get("model_mapping", {})
-            mapping_parts = []
-            for slot, target in mapping.items():
-                provider = target.get("provider", "?")
-                model_name = target.get("model", "?")
-                mapping_parts.append(f"{slot}→{provider}/{model_name[:10]}")
-            url_mapping = ", ".join(mapping_parts)
-            if len(url_mapping) > 36:
-                url_mapping = url_mapping[:33] + "..."
+            mode_tag = "混合"
         else:
-            url_mapping = prof.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
-            if len(url_mapping) > 36:
-                url_mapping = url_mapping[:33] + "..."
+            mode_tag = f"单一 · {prof.get('model', '?')}"
 
-        print(f"{mark:2} {name:<18} {mode_text:<8} {url_mapping:<38} {model:<8} {notify}")
+        line1 = f"{prefix}{name}{' *' if is_active else ''}    {mode_tag}"
+        if "hooks" in prof:
+            line1 += "    \U0001f514"
+        body.append(line1)
+
+        if mode == "mixed":
+            for slot, target in prof.get("model_mapping", {}).items():
+                body.append(f"    {DIM}{slot}→{target['provider']}/{target['model']}{RESET}")
+        else:
+            url = prof.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
+            body.append(f"    {DIM}{url}{RESET}")
+        if idx < len(profile_items) - 1:
+            body.append("")
+
+    print(panel("配置列表", f"共 {len(profiles)} 个", body))
 
 
 def cmd_show(args):
     """显示配置详情。"""
     profiles = load_profiles()
     name = args.name
+    if name is None:
+        name = pick_profile("选择要查看的配置")
+        if name is None:
+            return
 
     if name not in profiles:
         print(f"错误: 配置 '{name}' 不存在。")
@@ -283,58 +291,79 @@ def cmd_show(args):
 
     prof = profiles[name]
     mode = prof.get("mode", "single")
+    mode_label = "混合模式" if mode == "mixed" else "单一模式"
 
-    print(f"配置: {name}")
-    print(f"  模式:          {'混合模式' if mode == 'mixed' else '单一模式'}")
-    print(f"  模型:          {prof.get('model', 'N/A')}")
-    print(f"  努力等级:      {prof.get('effortLevel', 'high')}")
+    body = []
+    body.append("")
+    body.append(kv("模型", prof.get("model", "N/A")))
+    body.append(kv("努力等级", prof.get("effortLevel", "high")))
+    body.append("")
 
     if mode == "mixed":
-        # 显示模型映射
-        print("  模型映射:")
-        model_mapping = prof.get("model_mapping", {})
-        for slot, target in model_mapping.items():
-            provider = target.get("provider", "?")
-            model = target.get("model", "?")
-            print(f"    {slot}:  {provider} → {model}")
-        port = prof.get("proxy_port", "18888")
-        print(f"  代理端口:      {port}")
+        # 模型映射子面板
+        mapping_lines = []
+        for slot, target in prof.get("model_mapping", {}).items():
+            mapping_lines.append(f"{slot}    →  {target.get('provider', '?')} / {target.get('model', '?')}")
+        body.append(("sub", "模型映射", mapping_lines))
+        body.append("")
+        body.append(kv("代理端口", str(prof.get("proxy_port", 18888))))
     else:
-        # 单一模式显示
+        # 连接子面板
         env = prof.get("env", {})
-        print(f"  API 密钥:      {mask_token(env.get('ANTHROPIC_AUTH_TOKEN'))}")
-        print(f"  API 地址:      {env.get('ANTHROPIC_BASE_URL', 'N/A')}")
-        print(f"  默认模型:      {env.get('ANTHROPIC_MODEL', 'N/A')}")
-        print(f"  Haiku 模型:    {env.get('ANTHROPIC_DEFAULT_HAIKU_MODEL', 'N/A')}")
-        print(f"  Sonnet 模型:   {env.get('ANTHROPIC_DEFAULT_SONNET_MODEL', 'N/A')}")
-        print(f"  Opus 模型:     {env.get('ANTHROPIC_DEFAULT_OPUS_MODEL', 'N/A')}")
-        print("  禁用标志:")
-        for flag, desc in DISABLE_FLAGS:
-            status = "ON" if env.get(flag) == "1" else "OFF"
-            print(f"    {desc}: {status}")
-        print("  启用标志:")
-        for flag, desc in ENABLE_FLAGS:
-            status = "ON" if env.get(flag) == "1" else "OFF"
-            print(f"    {desc}: {status}")
+        conn_lines = [
+            kv("API 密钥", mask_token(env.get("ANTHROPIC_AUTH_TOKEN", ""))),
+            kv("API 地址", env.get("ANTHROPIC_BASE_URL", "N/A")),
+        ]
+        body.append(("sub", "连接", conn_lines))
+        body.append("")
 
-    # 推送通知信息
+        # 模型覆盖子面板
+        override_lines = []
+        for label, key in [
+            ("默认模型", "ANTHROPIC_MODEL"),
+            ("Haiku", "ANTHROPIC_DEFAULT_HAIKU_MODEL"),
+            ("Sonnet", "ANTHROPIC_DEFAULT_SONNET_MODEL"),
+            ("Opus", "ANTHROPIC_DEFAULT_OPUS_MODEL"),
+        ]:
+            val = env.get(key)
+            override_lines.append(kv(label, val if val else f"{DIM}N/A{RESET}"))
+        body.append(("sub", "模型覆盖", override_lines))
+        body.append("")
+
+        # 标志子面板
+        flag_lines = []
+        flag_lines.append("禁用")
+        for flag, desc in DISABLE_FLAGS:
+            mark = f"{GREEN}✓{RESET}" if env.get(flag) == "1" else f"{RED}×{RESET}"
+            flag_lines.append(f"  {mark} {desc}")
+        flag_lines.append("启用")
+        for flag, desc in ENABLE_FLAGS:
+            mark = f"{GREEN}✓{RESET}" if env.get(flag) == "1" else f"{RED}×{RESET}"
+            flag_lines.append(f"  {mark} {desc}")
+        body.append(("sub", "标志", flag_lines))
+        body.append("")
+
+    # 推送通知
     hooks = prof.get("hooks")
-    if hooks:
-        if "bark_key" in hooks:
-            print("  推送通知:")
-            print(f"    Bark Key:      {mask_bark_key(hooks.get('bark_key', ''))}")
-            print(f"    主机名标签:    {hooks.get('host_label', 'N/A')}")
-            print(f"    通知铃声:      {hooks.get('sound', 'N/A')}")
-        else:
-            print("  推送通知:       自定义 hooks 配置")
+    if hooks and "bark_key" in hooks:
+        body.append(kv("推送通知", f"\U0001f514 Bark ({hooks.get('host_label', 'N/A')})"))
+    elif hooks:
+        body.append(kv("推送通知", "自定义 hooks 配置"))
     else:
-        print("  推送通知:       未配置")
+        body.append(kv("推送通知", f"{DIM}未配置{RESET}"))
+    body.append("")
+
+    print(panel(name, mode_label, body))
 
 
 def cmd_edit(args):
     """编辑配置。"""
     profiles = load_profiles()
     name = args.name
+    if name is None:
+        name = pick_profile("选择要编辑的配置")
+        if name is None:
+            return
 
     if name not in profiles:
         print(f"错误: 配置 '{name}' 不存在。")
@@ -360,6 +389,10 @@ def cmd_delete(args):
     """删除配置。"""
     profiles = load_profiles()
     name = args.name
+    if name is None:
+        name = pick_profile("选择要删除的配置")
+        if name is None:
+            return
 
     if name not in profiles:
         print(f"错误: 配置 '{name}' 不存在。")
@@ -369,8 +402,7 @@ def cmd_delete(args):
     if meta.get("active") == name:
         print(f"警告: '{name}' 是当前活动配置。")
 
-    ans = input(f"确认删除配置 '{name}'？[y/N] ").strip().lower()
-    if ans != "y":
+    if not confirm_action(f"确认删除配置 '{name}'？", default_yes=False):
         print("已取消。")
         return
 
@@ -398,25 +430,31 @@ def cmd_current(_args):
 
     prof = profiles[active]
     mode = prof.get("mode", "single")
-    model = prof.get("model", "N/A")
+    mode_label = "混合模式" if mode == "mixed" else "单一模式"
+    title = f"{active_marker()}{active}"
 
-    print(f"当前活动配置: {active} ({'混合模式' if mode == 'mixed' else '单一模式'})")
+    body = []
+    body.append("")
 
     if mode == "mixed":
-        # 显示代理状态
         proxy_info = get_proxy_info()
+        body.append(status_dot(proxy_info["running"]))
         if proxy_info["running"]:
-            print(f"  代理状态:      运行中 (PID: {proxy_info['pid']}, 端口: {proxy_info.get('port', 'N/A')})")
-            if "mapping" in proxy_info:
-                print("  模型映射:")
-                for m in proxy_info["mapping"]:
-                    print(f"    {m}")
-        else:
-            print("  代理状态:      未运行")
+            body.append(f"PID: {proxy_info['pid']}  端口: {proxy_info.get('port', 'N/A')}")
+        body.append("")
+        # 模型映射子面板
+        mapping_lines = []
+        for slot, target in prof.get("model_mapping", {}).items():
+            mapping_lines.append(f"{slot}    →  {target.get('provider', '?')} / {target.get('model', '?')}")
+        body.append(("sub", "模型映射", mapping_lines))
     else:
+        body.append(kv("模型", prof.get("model", "N/A")))
+        body.append(kv("努力等级", prof.get("effortLevel", "high")))
         url = prof.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
-        print(f"  URL: {url}")
-    print(f"  模型: {model}")
+        body.append(kv("API 地址", url))
+
+    body.append("")
+    print(panel(title, mode_label, body))
 
 
 def cmd_proxy_status(_args):

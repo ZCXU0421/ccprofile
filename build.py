@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Build script - Package ccprofile into a standalone executable using PyInstaller."""
+"""Build script - Package ccprofile into a PyInstaller onedir distribution."""
 
 import os
 import subprocess
@@ -43,7 +43,7 @@ def build():
 
     cmd = [
         sys.executable, "-m", "PyInstaller",
-        "--onefile",
+        "--onedir",
         "--clean",
         "--name", "ccprofile",
         "--hidden-import", "cryptography",
@@ -61,11 +61,14 @@ def build():
     print(f"Running: {' '.join(cmd)}")
     subprocess.check_call(cmd, cwd=ROOT)
 
-    ext = ".exe" if sys.platform == "win32" else ""
-    exe = DIST / f"ccprofile{ext}"
+    exe_name = "ccprofile.exe" if sys.platform == "win32" else "ccprofile"
+    bundle_dir = DIST / "ccprofile"
+    exe = bundle_dir / exe_name
     if exe.exists():
-        size_mb = exe.stat().st_size / (1024 * 1024)
-        print(f"\nBuild succeeded: {exe} ({size_mb:.1f} MB)")
+        total_size = sum(p.stat().st_size for p in bundle_dir.rglob("*") if p.is_file())
+        size_mb = total_size / (1024 * 1024)
+        print(f"\nBuild succeeded: {bundle_dir} ({size_mb:.1f} MB)")
+        print(f"Executable: {exe}")
     else:
         print("\nError: Build artifact not found.")
         sys.exit(1)

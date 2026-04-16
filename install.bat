@@ -9,7 +9,11 @@ setlocal EnableDelayedExpansion
 :: automatically download the correct one from GitHub Releases.
 
 set "INSTALL_DIR=%USERPROFILE%\bin"
-set "RELEASES_URL=https://github.com/ZCXU0421/ccprofile/releases/latest/download"
+if defined CCPROFILE_RELEASES_URL (
+    set "RELEASES_URL=%CCPROFILE_RELEASES_URL%"
+) else (
+    set "RELEASES_URL=https://github.com/ZCXU0421/ccprofile/releases/latest/download"
+)
 set "CHECKSUMS_NAME=SHA256SUMS"
 
 echo ========================================
@@ -19,19 +23,25 @@ echo.
 
 :: Look for a local binary first
 set "BINARY="
-if exist "%~dp0ccprofile.exe" (
+set "BUNDLE_DIR="
+if exist "%~dp0dist\ccprofile\ccprofile.exe" (
+    set "BUNDLE_DIR=%~dp0dist\ccprofile"
+) else if exist "%~dp0ccprofile\ccprofile.exe" (
+    set "BUNDLE_DIR=%~dp0ccprofile"
+) else if exist "%~dp0ccprofile.exe" (
     set "BINARY=%~dp0ccprofile.exe"
 ) else if exist "%~dp0ccprofile-windows.exe" (
     set "BINARY=%~dp0ccprofile-windows.exe"
 )
 
 :: If no local binary, download from GitHub Releases
-if not defined BINARY (
+if not defined BINARY if not defined BUNDLE_DIR (
     echo [INFO] No local binary found, downloading from GitHub Releases...
-    set "REMOTE_NAME=ccprofile-windows.exe"
+    set "REMOTE_NAME=ccprofile-windows.zip"
     set "DOWNLOAD_URL=%RELEASES_URL%/!REMOTE_NAME!"
-    set "TMP_FILE=%TEMP%\ccprofile-windows.exe"
+    set "TMP_FILE=%TEMP%\ccprofile-windows.zip"
     set "TMP_CHECKSUM=%TEMP%\ccprofile-SHA256SUMS"
+    set "TMP_DIR=%TEMP%\ccprofile-install-%RANDOM%%RANDOM%"
 
     echo   Downloading !DOWNLOAD_URL! ...
 
@@ -84,7 +94,30 @@ if not defined BINARY (
         exit /b 1
     )
 
-    set "BINARY=!TMP_FILE!"
+    if exist "!TMP_DIR!" rmdir /s /q "!TMP_DIR!"
+    mkdir "!TMP_DIR!" >nul
+    echo   Extracting !REMOTE_NAME! ...
+    powershell -NoProfile -Command "Expand-Archive -LiteralPath '!TMP_FILE!' -DestinationPath '!TMP_DIR!' -Force" 2>nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract !REMOTE_NAME!.
+        if exist "!TMP_FILE!" del /f "!TMP_FILE!" 2>nul
+        if exist "!TMP_CHECKSUM!" del /f "!TMP_CHECKSUM!" 2>nul
+        if exist "!TMP_DIR!" rmdir /s /q "!TMP_DIR!" 2>nul
+        pause
+        exit /b 1
+    )
+
+    if exist "!TMP_DIR!\ccprofile\ccprofile.exe" (
+        set "BUNDLE_DIR=!TMP_DIR!\ccprofile"
+    ) else (
+        echo [ERROR] Archive layout is invalid: missing ccprofile\ccprofile.exe.
+        if exist "!TMP_FILE!" del /f "!TMP_FILE!" 2>nul
+        if exist "!TMP_CHECKSUM!" del /f "!TMP_CHECKSUM!" 2>nul
+        if exist "!TMP_DIR!" rmdir /s /q "!TMP_DIR!" 2>nul
+        pause
+        exit /b 1
+    )
+
     echo   Download verified.
     echo.
 )
@@ -97,9 +130,21 @@ if not exist "%INSTALL_DIR%" (
     echo [1/3] Directory exists: %INSTALL_DIR%
 )
 
-:: Copy executable
-copy /y "!BINARY!" "%INSTALL_DIR%\ccprofile.exe" >nul
-echo [2/3] Copied ccprofile.exe to %INSTALL_DIR%
+:: Copy executable. For onedir builds, keep the bundle intact and install a
+:: small wrapper on PATH so PyInstaller can find its _internal files.
+if defined BUNDLE_DIR (
+    set "APP_DIR=%LOCALAPPDATA%\ccprofile"
+    if exist "!APP_DIR!" rmdir /s /q "!APP_DIR!"
+    xcopy /E /I /Y "!BUNDLE_DIR!" "!APP_DIR!" >nul
+    if exist "%INSTALL_DIR%\ccprofile.exe" del /f "%INSTALL_DIR%\ccprofile.exe" 2>nul
+    > "%INSTALL_DIR%\ccprofile.bat" echo @echo off
+    >> "%INSTALL_DIR%\ccprofile.bat" echo "!APP_DIR!\ccprofile.exe" %%*
+    echo [2/3] Installed ccprofile bundle to !APP_DIR!
+    echo       Wrapper: %INSTALL_DIR%\ccprofile.bat
+) else (
+    copy /y "!BINARY!" "%INSTALL_DIR%\ccprofile.exe" >nul
+    echo [2/3] Copied ccprofile.exe to %INSTALL_DIR%
+)
 
 :: Clean up temp file if we downloaded it
 if defined TMP_FILE (
@@ -110,6 +155,11 @@ if defined TMP_FILE (
 if defined TMP_CHECKSUM (
     if exist "!TMP_CHECKSUM!" (
         del /f "!TMP_CHECKSUM!" 2>nul
+    )
+)
+if defined TMP_DIR (
+    if exist "!TMP_DIR!" (
+        rmdir /s /q "!TMP_DIR!" 2>nul
     )
 )
 

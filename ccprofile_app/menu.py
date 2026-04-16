@@ -4,6 +4,7 @@ from .commands import cmd_add, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_
 from .constants import KEY_FILE, PROFILES_ENC
 from .provider import cmd_provider_add, cmd_provider_delete, cmd_provider_edit, cmd_provider_list, cmd_provider_show
 from .storage import load_meta, load_profiles, load_providers
+from .picker import pick_profile, pick_provider
 from .terminal import select_from_list
 
 # ── 菜单结构定义 ──
@@ -67,44 +68,6 @@ def interactive_menu():
         "provider_delete": cmd_provider_delete,
     }
 
-    def pick_profile(prompt_text):
-        """列出配置供用户上下键选择。"""
-        if not KEY_FILE.exists() or not PROFILES_ENC.exists():
-            print("  暂无配置。请先 init 并 add。")
-            return None
-        profiles = load_profiles()
-        if not profiles:
-            print("  暂无配置。请先添加。")
-            return None
-        names = list(profiles.keys())
-        meta = load_meta()
-        items = []
-        for n in names:
-            mark = " *" if n == meta.get("active") else ""
-            prof = profiles[n]
-            mode = prof.get("mode", "single")
-            if mode == "mixed":
-                url = "混合模式"
-            else:
-                url = prof.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
-            items.append((n, f"{n}{mark}  ({url})"))
-        items.append((None, "取消"))
-        return select_from_list(items, prompt_text)
-
-    def pick_provider(prompt_text):
-        """列出提供商供用户上下键选择。"""
-        providers = load_providers()
-        if not providers:
-            print("  暂无提供商。请先添加提供商。")
-            return None
-        items = []
-        for name, prov in providers.items():
-            url = prov.get("base_url", "")
-            models = ", ".join(prov.get("models", []))
-            items.append((name, f"{name}  ({url})"))
-        items.append((None, "取消"))
-        return select_from_list(items, prompt_text)
-
     def _execute_command(cmd_name):
         """执行单个命令，处理参数构造和错误。"""
         class Args:
@@ -120,11 +83,15 @@ def interactive_menu():
             args.name = name
 
             # 模式选择
-            print("  选择配置模式:")
-            print("    [1] 单一模式 (single) - 一个提供商对应所有模型")
-            print("    [2] 混合模式 (mixed) - 不同模型使用不同提供商")
-            mode_choice = input("  请选择 [1/2] [1]: ").strip()
-            args.mode = "mixed" if mode_choice == "2" else "single"
+            mode = select_from_list(
+                [("single", "单一模式 — 一个提供商对应所有模型"),
+                 ("mixed",  "混合模式 — 不同模型使用不同提供商")],
+                "选择配置模式"
+            )
+            if mode is None:
+                print("  已取消。")
+                return
+            args.mode = mode
 
             args.token = None
             args.url = None
