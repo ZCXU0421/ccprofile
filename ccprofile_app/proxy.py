@@ -10,6 +10,7 @@ import http.client
 import json
 import os
 import signal
+import ssl
 import sys
 import threading
 import time
@@ -39,7 +40,10 @@ _DEFAULT_LEGACY_MODEL_SLOT_PREFIXES = {
 DEFAULT_CONFIG_PATH = Path.home() / ".ccprofile" / "proxy_config.json"
 DEFAULT_UPSTREAM_TIMEOUT = 600
 UPSTREAM_TIMEOUT_ENV = "CCPROFILE_PROXY_TIMEOUT"
+SSL_VERIFY_ENV = "CCPROFILE_PROXY_SSL_VERIFY"
+SSL_CERT_FILE_ENVS = ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE")
 MESSAGES_PATH = "/v1/messages"
+_cleanup_config_path: Optional[Path] = None
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -73,6 +77,9 @@ class ProxyConfig:
         self.config = None
         self._virtual_model_prefix = _DEFAULT_VIRTUAL_MODEL_PREFIX
         self._legacy_model_slot_prefixes = dict(_DEFAULT_LEGACY_MODEL_SLOT_PREFIXES)
+        self._ssl_context: Optional[ssl.SSLContext] = None
+        self._ssl_context_key: Optional[Tuple[bool, Optional[str]]] = None
+        self._ssl_context_lock = threading.Lock()
         self._load_config()
 
     def _load_config(self):
@@ -150,6 +157,68 @@ class ProxyConfig:
         if timeout <= 0:
             return None
         return timeout
+
+    @property
+    def ssl_verify(self) -> bool:
+        """Whether HTTPS upstream certificates should be verified."""
+        configured = os.environ.get(
+            SSL_VERIFY_ENV,
+            self.config.get("ssl_verify", True),
+        )
+        if isinstance(configured, bool):
+            return configured
+        return str(configured).strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+            "disable",
+            "disabled",
+        }
+
+    @property
+    def ssl_ca_bundle(self) -> Optional[str]:
+        """Return the CA bundle path for HTTPS upstream verification."""
+        for env_name in SSL_CERT_FILE_ENVS:
+            value = os.environ.get(env_name)
+            if value:
+                return value
+
+        configured = self.config.get("ssl_ca_bundle")
+        if configured:
+            return configured
+
+        try:
+            import certifi
+        except ImportError:
+            return None
+        return certifi.where()
+
+    def _build_ssl_context(
+        self, ssl_verify: bool, ca_bundle: Optional[str]
+    ) -> ssl.SSLContext:
+        """Build the SSL context used for HTTPS upstream connections."""
+        if not ssl_verify:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            return context
+
+        if ca_bundle:
+            return ssl.create_default_context(cafile=ca_bundle)
+        return ssl.create_default_context()
+
+    def create_ssl_context(self) -> ssl.SSLContext:
+        """Create or reuse the SSL context used for HTTPS upstream connections."""
+        ssl_verify = self.ssl_verify
+        ca_bundle = self.ssl_ca_bundle if ssl_verify else None
+        context_key = (ssl_verify, ca_bundle)
+
+        with self._ssl_context_lock:
+            if self._ssl_context is None or self._ssl_context_key != context_key:
+                self._ssl_context = self._build_ssl_context(ssl_verify, ca_bundle)
+                self._ssl_context_key = context_key
+            return self._ssl_context
 
 
 class ProxyHandler(BaseHTTPRequestHandler):
@@ -264,12 +333,19 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if self.proxy_config
             else DEFAULT_UPSTREAM_TIMEOUT
         )
-        connection_cls = (
-            http.client.HTTPSConnection
-            if parsed.scheme == "https"
-            else http.client.HTTPConnection
-        )
-        connection = connection_cls(parsed.netloc, timeout=timeout)
+        if parsed.scheme == "https":
+            context = (
+                self.proxy_config.create_ssl_context()
+                if self.proxy_config
+                else ssl.create_default_context()
+            )
+            connection = http.client.HTTPSConnection(
+                parsed.netloc,
+                timeout=timeout,
+                context=context,
+            )
+        else:
+            connection = http.client.HTTPConnection(parsed.netloc, timeout=timeout)
 
         upstream_headers = {}
         skip_headers = HOP_BY_HOP_HEADERS | {"host", "content-length", "accept-encoding"}
@@ -553,7 +629,11 @@ class ProxyServer:
         self.server_thread = threading.Thread(target=self._run_server, daemon=True)
         self.server_thread.start()
 
+        ssl_verify = config.ssl_verify
+        ssl_status = "开启" if ssl_verify else "关闭"
+        ca_bundle = (config.ssl_ca_bundle or "系统默认") if ssl_verify else "未使用"
         print(f"代理服务器已启动，监听端口: {self.port}", flush=True)
+        print(f"上游 TLS 校验: {ssl_status}, CA: {ca_bundle}", flush=True)
 
     def _run_server(self):
         """运行服务器主循环。"""
@@ -580,9 +660,11 @@ class ProxyServer:
 
 def _cleanup_on_exit():
     """清理代理运行时文件（config 含明文 API key）。"""
+    if not _cleanup_config_path:
+        return
     try:
-        if DEFAULT_CONFIG_PATH.exists():
-            DEFAULT_CONFIG_PATH.unlink()
+        if _cleanup_config_path.exists():
+            _cleanup_config_path.unlink()
     except OSError:
         pass
 
@@ -608,6 +690,8 @@ def main():
 
     # 加载配置
     config = ProxyConfig(args.config)
+    global _cleanup_config_path
+    _cleanup_config_path = args.config
     port = config.port
 
     server = ProxyServer(port)

@@ -26,8 +26,17 @@ def check_pyinstaller():
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
 
 
+def check_certifi():
+    try:
+        import certifi  # noqa: F401
+    except ImportError:
+        print("Installing certifi...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "certifi"])
+
+
 def build():
     check_pyinstaller()
+    check_certifi()
 
     if DIST.exists():
         shutil.rmtree(DIST, ignore_errors=True)
@@ -42,13 +51,15 @@ def build():
         "--hidden-import", "cryptography.hazmat.primitives.ciphers",
         "--hidden-import", "cryptography.hazmat.primitives",
         "--hidden-import", "cryptography.hazmat.backends",
+        "--hidden-import", "certifi",
+        "--collect-data", "certifi",
         "--hidden-import", "ccprofile_app",
         "--collect-submodules", "ccprofile_app",
-        str(ROOT / "ccprofile.py"),
+        "ccprofile.py",
     ]
 
     print(f"Running: {' '.join(cmd)}")
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, cwd=ROOT)
 
     ext = ".exe" if sys.platform == "win32" else ""
     exe = DIST / f"ccprofile{ext}"

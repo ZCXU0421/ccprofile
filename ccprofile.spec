@@ -1,7 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = ['cryptography', 'cryptography.fernet', 'cryptography.hazmat.primitives.ciphers', 'cryptography.hazmat.primitives', 'cryptography.hazmat.backends', 'ccprofile_app']
+datas = []
+hiddenimports = ['cryptography', 'cryptography.fernet', 'cryptography.hazmat.primitives.ciphers', 'cryptography.hazmat.primitives', 'cryptography.hazmat.backends', 'certifi', 'ccprofile_app']
+datas += collect_data_files('certifi')
 hiddenimports += collect_submodules('ccprofile_app')
 
 
@@ -9,7 +12,7 @@ a = Analysis(
     ['ccprofile.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

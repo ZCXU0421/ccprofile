@@ -89,6 +89,14 @@ jobs:
           cp install.sh release/install-linux.sh
           cp install.bat release/install-windows.bat
 
+          # Publish checksums for installer-side verification
+          (
+            cd release
+            find . -type f ! -name SHA256SUMS -printf '%P\0' \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
+          )
+
       - uses: softprops/action-gh-release@v2
         with:
           files: release/*
