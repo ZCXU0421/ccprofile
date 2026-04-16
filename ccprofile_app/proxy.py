@@ -43,6 +43,8 @@ UPSTREAM_TIMEOUT_ENV = "CCPROFILE_PROXY_TIMEOUT"
 SSL_VERIFY_ENV = "CCPROFILE_PROXY_SSL_VERIFY"
 SSL_CERT_FILE_ENVS = ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE")
 MESSAGES_PATH = "/v1/messages"
+COUNT_TOKENS_PATH = "/v1/messages/count_tokens"
+SUPPORTED_POST_PATHS = {MESSAGES_PATH, COUNT_TOKENS_PATH}
 _cleanup_config_path: Optional[Path] = None
 
 HOP_BY_HOP_HEADERS = {
@@ -262,8 +264,58 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(response_body)))
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(response_body)
+
+    def _get_content_length(self) -> Optional[int]:
+        """Return Content-Length or send a 400 error when the header is invalid."""
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            content_length = int(raw_length)
+        except (TypeError, ValueError):
+            self.close_connection = True
+            self._send_error_response(
+                400,
+                "invalid_request_error",
+                f"Content-Length 无效: {raw_length}",
+            )
+            return None
+        if content_length < 0:
+            self.close_connection = True
+            self._send_error_response(
+                400,
+                "invalid_request_error",
+                "Content-Length 不能为负数",
+            )
+            return None
+        return content_length
+
+    def _discard_request_body(self):
+        """Drain the request body before returning early.
+
+        BaseHTTPRequestHandler keeps HTTP/1.1 connections open by default. If a
+        POST body is not consumed, the next parser pass treats the leftover JSON
+        body as a new request line and returns an HTML "Bad request syntax" page.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except (TypeError, ValueError):
+            return
+        if not content_length:
+            return
+        self.rfile.read(content_length)
+
+    def _read_required_body(self) -> Optional[bytes]:
+        """Read a non-empty request body, sending an Anthropic JSON error on failure."""
+        content_length = self._get_content_length()
+        if content_length is None:
+            return None
+        if content_length == 0:
+            self._send_error_response(400, "invalid_request_error", "请求体为空")
+            return None
+        return self.rfile.read(content_length)
 
     def _send_streaming_error_response(
         self, status_code: int, error_type: str, message: str
@@ -358,7 +410,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         connection.request("POST", path, body=body, headers=upstream_headers)
         return connection, connection.getresponse()
 
-    def _build_target_url(self, target_url: str) -> str:
+    def _build_target_url(self, target_url: str, endpoint_path: str) -> str:
         """合并客户端请求 query 到目标 provider URL。"""
         parsed = urlsplit(target_url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -366,11 +418,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         path = parsed.path.rstrip("/")
         if not path:
-            path = MESSAGES_PATH
+            path = endpoint_path
         elif path.endswith("/v1"):
-            path = f"{path}/messages"
-        elif not path.endswith("/messages"):
-            path = f"{path}{MESSAGES_PATH}"
+            path = f"{path}{endpoint_path[len('/v1'):]}"
+        elif path.endswith(COUNT_TOKENS_PATH):
+            if endpoint_path == MESSAGES_PATH:
+                path = path[: -len("/count_tokens")]
+        elif path.endswith(MESSAGES_PATH):
+            if endpoint_path == COUNT_TOKENS_PATH:
+                path = f"{path}/count_tokens"
+        elif not path.endswith(endpoint_path):
+            path = f"{path}{endpoint_path}"
 
         incoming = urlsplit(self.path)
         query_parts = [part for part in (parsed.query, incoming.query) if part]
@@ -515,21 +573,22 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         """处理 POST 请求。"""
         request_path = urlsplit(self.path).path
-        if request_path != MESSAGES_PATH:
+        if request_path not in SUPPORTED_POST_PATHS:
+            self._discard_request_body()
+            self.close_connection = True
             self._send_error_response(404, "not_found_error", f"未知的路径: {self.path}")
             return
 
         if not self.proxy_config:
+            self._discard_request_body()
+            self.close_connection = True
             self._send_error_response(500, "internal_error", "代理配置未加载")
             return
 
         # 读取请求体
-        content_length = int(self.headers.get("Content-Length", 0))
-        if content_length == 0:
-            self._send_error_response(400, "invalid_request_error", "请求体为空")
+        body = self._read_required_body()
+        if body is None:
             return
-
-        body = self.rfile.read(content_length)
 
         # 解析请求体
         try:
@@ -568,7 +627,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         ).encode("utf-8")
 
         try:
-            target_url = self._build_target_url(target.get("base_url", ""))
+            target_url = self._build_target_url(target.get("base_url", ""), request_path)
         except ValueError as e:
             self._send_error_response(400, "invalid_request_error", str(e))
             return
@@ -577,7 +636,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         new_headers = self._build_upstream_headers(target)
 
         # 检查是否是流式请求
-        is_streaming = request_data.get("stream", False)
+        is_streaming = request_path == MESSAGES_PATH and request_data.get("stream", False)
 
         if is_streaming:
             self._forward_streaming_request(target_url, new_headers, new_body)
