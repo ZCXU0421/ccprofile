@@ -30,26 +30,20 @@
 **Linux**
 
 ```bash
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-linux"
-chmod +x install-linux
-./install-linux
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-linux.sh"
+chmod +x install-linux.sh
+./install-linux.sh
 ```
 
-**macOS (Apple Silicon)**
+**macOS**
 
 ```bash
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-macos-arm64"
-chmod +x install-macos-arm64
-./install-macos-arm64
+curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-macos.sh"
+chmod +x install-macos.sh
+./install-macos.sh
 ```
 
-**macOS (Intel)**
-
-```bash
-curl -sLO "https://github.com/ZCXU0421/ccprofile/releases/latest/download/install-macos-intel"
-chmod +x install-macos-intel
-./install-macos-intel
-```
+安装脚本会自动检测 Apple Silicon / Intel 并下载对应二进制文件。
 
 **Windows**
 
