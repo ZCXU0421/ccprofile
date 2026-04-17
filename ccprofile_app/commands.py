@@ -26,6 +26,7 @@ from .proxy_process import get_proxy_info, start_proxy, stop_proxy
 from .storage import (
     backup_settings,
     load_meta,
+    load_proxy_config,
     load_profiles,
     load_providers,
     read_settings,
@@ -269,28 +270,30 @@ def cmd_list(_args):
     body = []
     profile_items = list(profiles.items())
     for idx, (name, prof) in enumerate(profile_items):
-        _normalize_teams_flag(prof)
+        prof_copy = dict(prof)
+        prof_copy["env"] = dict(prof.get("env", {}))
+        _normalize_teams_flag(prof_copy)
         is_active = (name == active)
         prefix = active_marker() if is_active else "  "
-        mode = prof.get("mode", "single")
+        mode = prof_copy.get("mode", "single")
 
         if mode == "mixed":
             mode_tag = "混合"
         else:
-            mode_tag = f"单一 · {prof.get('model', '?')}"
+            mode_tag = f"单一 · {prof_copy.get('model', '?')}"
 
         line1 = f"{prefix}{name}{' *' if is_active else ''}    {mode_tag}"
-        if prof.get("enableTeams"):
+        if prof_copy.get("enableTeams"):
             line1 += "    👥 Teams"
-        if "hooks" in prof:
+        if "hooks" in prof_copy:
             line1 += "    \U0001f514"
         body.append(line1)
 
         if mode == "mixed":
-            for slot, target in prof.get("model_mapping", {}).items():
+            for slot, target in prof_copy.get("model_mapping", {}).items():
                 body.append(f"    {DIM}{slot}→{target['provider']}/{target['model']}{RESET}")
         else:
-            url = prof.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
+            url = prof_copy.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
             body.append(f"    {DIM}{url}{RESET}")
         if idx < len(profile_items) - 1:
             body.append("")
@@ -312,29 +315,31 @@ def cmd_show(args):
         sys.exit(1)
 
     prof = profiles[name]
-    _normalize_teams_flag(prof)
-    mode = prof.get("mode", "single")
+    prof_copy = dict(prof)
+    prof_copy["env"] = dict(prof.get("env", {}))
+    _normalize_teams_flag(prof_copy)
+    mode = prof_copy.get("mode", "single")
     mode_label = "混合模式" if mode == "mixed" else "单一模式"
 
     body = []
     body.append("")
-    body.append(kv("模型", prof.get("model", "N/A")))
-    body.append(kv("努力等级", prof.get("effortLevel", "high")))
-    teams_status = f"{GREEN}✓ 已启用{RESET}" if prof.get("enableTeams") else f"{DIM}未启用{RESET}"
+    body.append(kv("模型", prof_copy.get("model", "N/A")))
+    body.append(kv("努力等级", prof_copy.get("effortLevel", "high")))
+    teams_status = f"{GREEN}✓ 已启用{RESET}" if prof_copy.get("enableTeams") else f"{DIM}未启用{RESET}"
     body.append(kv("Teams 模式", teams_status))
     body.append("")
 
     if mode == "mixed":
         # 模型映射子面板
         mapping_lines = []
-        for slot, target in prof.get("model_mapping", {}).items():
+        for slot, target in prof_copy.get("model_mapping", {}).items():
             mapping_lines.append(f"{slot}    →  {target.get('provider', '?')} / {target.get('model', '?')}")
         body.append(("sub", "模型映射", mapping_lines))
         body.append("")
-        body.append(kv("代理端口", str(prof.get("proxy_port", 18888))))
+        body.append(kv("代理端口", str(prof_copy.get("proxy_port", 18888))))
     else:
         # 连接子面板
-        env = prof.get("env", {})
+        env = prof_copy.get("env", {})
         conn_lines = [
             kv("API 密钥", mask_token(env.get("ANTHROPIC_AUTH_TOKEN", ""))),
             kv("API 地址", env.get("ANTHROPIC_BASE_URL", "N/A")),
@@ -369,7 +374,7 @@ def cmd_show(args):
         body.append("")
 
     # 推送通知
-    hooks = prof.get("hooks")
+    hooks = prof_copy.get("hooks")
     if hooks and "bark_key" in hooks:
         body.append(kv("推送通知", f"\U0001f514 Bark ({hooks.get('host_label', 'N/A')})"))
     elif hooks:
@@ -413,6 +418,9 @@ def cmd_edit(args):
             profile["mode"] = "single"
         profile["enableTeams"] = old_teams
     # CLI flags override
+    if getattr(args, "enable_teams", False) and getattr(args, "disable_teams", False):
+        print("错误: 不能同时指定 --enable-teams 和 --disable-teams。")
+        sys.exit(1)
     if getattr(args, "enable_teams", False):
         profile["enableTeams"] = True
     if getattr(args, "disable_teams", False):
@@ -437,16 +445,23 @@ def cmd_delete(args):
         sys.exit(1)
 
     meta = load_meta()
-    if meta.get("active") == name:
+    is_active = meta.get("active") == name
+    if is_active:
         print(f"警告: '{name}' 是当前活动配置。")
 
     if not confirm_action(f"确认删除配置 '{name}'？", default_yes=False):
         print("已取消。")
         return
 
+    # Stop proxy only after confirmation
+    if is_active:
+        proxy_cfg = load_proxy_config()
+        if proxy_cfg:
+            stop_proxy()
+
     del profiles[name]
     save_profiles(profiles)
-    if meta.get("active") == name:
+    if is_active:
         meta["active"] = None
         save_meta(meta)
     print(f"配置 '{name}' 已删除。")
@@ -467,15 +482,17 @@ def cmd_current(_args):
         return
 
     prof = profiles[active]
-    _normalize_teams_flag(prof)
-    mode = prof.get("mode", "single")
+    prof_copy = dict(prof)
+    prof_copy["env"] = dict(prof.get("env", {}))
+    _normalize_teams_flag(prof_copy)
+    mode = prof_copy.get("mode", "single")
     mode_label = "混合模式" if mode == "mixed" else "单一模式"
     title = f"{active_marker()}{active}"
 
     body = []
     body.append("")
 
-    teams_status = f"{GREEN}✓ 已启用{RESET}" if prof.get("enableTeams") else f"{DIM}未启用{RESET}"
+    teams_status = f"{GREEN}✓ 已启用{RESET}" if prof_copy.get("enableTeams") else f"{DIM}未启用{RESET}"
 
     if mode == "mixed":
         proxy_info = get_proxy_info()
@@ -487,14 +504,14 @@ def cmd_current(_args):
         body.append("")
         # 模型映射子面板
         mapping_lines = []
-        for slot, target in prof.get("model_mapping", {}).items():
+        for slot, target in prof_copy.get("model_mapping", {}).items():
             mapping_lines.append(f"{slot}    →  {target.get('provider', '?')} / {target.get('model', '?')}")
         body.append(("sub", "模型映射", mapping_lines))
     else:
-        body.append(kv("模型", prof.get("model", "N/A")))
-        body.append(kv("努力等级", prof.get("effortLevel", "high")))
+        body.append(kv("模型", prof_copy.get("model", "N/A")))
+        body.append(kv("努力等级", prof_copy.get("effortLevel", "high")))
         body.append(kv("Teams 模式", teams_status))
-        url = prof.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
+        url = prof_copy.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
         body.append(kv("API 地址", url))
 
     body.append("")

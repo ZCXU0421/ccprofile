@@ -197,17 +197,6 @@ if slot in model_mapping:
 
 ---
 
-## Bug 9: proxy.py 虚拟模型名含多个连字符时的 slot 解析
-
-**属实：不是 bug**
-
-**位置：** `proxy.py:129-134`
-
-**分析：** `slot = model[len(virtual_prefix):]` 对 `ccprofile-opus-extra` 得到 `opus-extra`。这需要 `model_mapping` 中存在 `opus-extra` 这个 key 才能匹配。slot 名称由用户在配置中定义，解析逻辑将前缀后的全部内容作为 slot，这是正确行为。若 `opus-extra` 不在 mapping 中，会 fallback 到 legacy 前缀匹配。不存在解析错误。
-
-**修复难度：不适用**
-
----
 
 ## Bug 10: terminal.py _read_key 返回 None 未处理
 
@@ -227,17 +216,6 @@ if key is None:
     continue
 ```
 
----
-
-## Bug 11: prompts.py 禁用标志的默认「开」逻辑
-
-**属实：不是 bug（行为符合意图）**
-
-**位置：** `prompts.py:69-74`
-
-**分析：** `default_on = str(cur) == "1" if cur is not None else True`。当 `cur` 未设置时默认为 `True`（建议禁用），这符合产品意图——禁用标志默认推荐开启。三态压缩为二态是设计选择而非缺陷。
-
-**修复难度：不适用**
 
 ---
 

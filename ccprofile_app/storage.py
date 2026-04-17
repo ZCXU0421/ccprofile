@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import stat
+import tempfile
 
 from .constants import (
     CLAUDE_DIR,
@@ -17,6 +18,42 @@ from .constants import (
     SETTINGS_FILE,
 )
 from .crypto import decrypt_data, encrypt_data, load_key
+from .filelock import FileLock
+
+
+def atomic_write_bytes(path, data, mode=None):
+    """原子写入字节数据：先写临时文件，再 replace。"""
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    try:
+        if mode is not None and hasattr(os, "fchmod"):
+            os.fchmod(fd, mode)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        if mode is not None:
+            os.chmod(tmp_name, mode)
+        os.replace(tmp_name, str(path))
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+def atomic_write_text(path, content, encoding="utf-8", mode=None):
+    """原子写入文本数据：先写临时文件，再 replace。"""
+    atomic_write_bytes(path, content.encode(encoding), mode=mode)
+
 
 # Legacy paths (pre-migration, stored under ~/.claude/)
 _LEGACY_KEY_FILE = CLAUDE_DIR / ".profile_key"
@@ -49,27 +86,33 @@ def load_profiles():
     key = load_key()
     if not PROFILES_ENC.exists():
         return {}
-    return decrypt_data(PROFILES_ENC.read_bytes(), key)
+    with FileLock(PROFILES_ENC, exclusive=False):
+        return decrypt_data(PROFILES_ENC.read_bytes(), key)
 
 
 def save_profiles(profiles):
     """加密并保存所有配置。"""
     key = load_key()
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    PROFILES_ENC.write_bytes(encrypt_data(profiles, key))
+    encrypted = encrypt_data(profiles, key)
+    with FileLock(PROFILES_ENC, exclusive=True):
+        atomic_write_bytes(PROFILES_ENC, encrypted)
 
 
 def load_meta():
     """加载元数据。"""
     if not META_FILE.exists():
         return {}
-    return json.loads(META_FILE.read_text("utf-8"))
+    with FileLock(META_FILE, exclusive=False):
+        return json.loads(META_FILE.read_text("utf-8"))
 
 
 def save_meta(meta):
     """保存元数据。"""
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    META_FILE.write_text(json.dumps(meta, indent=2, ensure_ascii=False), "utf-8")
+    content = json.dumps(meta, indent=2, ensure_ascii=False)
+    with FileLock(META_FILE, exclusive=True):
+        atomic_write_text(META_FILE, content, "utf-8")
 
 
 def backup_settings():
@@ -88,9 +131,9 @@ def read_settings():
 def write_settings(data):
     """写入 settings.json。"""
     CLAUDE_DIR.mkdir(parents=True, exist_ok=True)
-    SETTINGS_FILE.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8"
-    )
+    content = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    with FileLock(SETTINGS_FILE, exclusive=True):
+        atomic_write_text(SETTINGS_FILE, content, "utf-8")
 
 
 # ── Provider storage ──
@@ -101,14 +144,17 @@ def load_providers():
     key = load_key()
     if not PROVIDERS_ENC.exists():
         return {}
-    return decrypt_data(PROVIDERS_ENC.read_bytes(), key)
+    with FileLock(PROVIDERS_ENC, exclusive=False):
+        return decrypt_data(PROVIDERS_ENC.read_bytes(), key)
 
 
 def save_providers(providers):
     """加密并保存所有提供商配置。"""
     key = load_key()
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    PROVIDERS_ENC.write_bytes(encrypt_data(providers, key))
+    encrypted = encrypt_data(providers, key)
+    with FileLock(PROVIDERS_ENC, exclusive=True):
+        atomic_write_bytes(PROVIDERS_ENC, encrypted)
 
 
 # ── Proxy config ──
@@ -124,11 +170,14 @@ def load_proxy_config():
 def save_proxy_config(config):
     """保存代理运行时配置（包含明文 API key，需限制权限）。"""
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    PROXY_CONFIG.write_text(
-        json.dumps(config, indent=2, ensure_ascii=False) + "\n", "utf-8"
-    )
-    # Restrict permissions (same as key file)
-    os.chmod(str(PROXY_CONFIG), stat.S_IRUSR | stat.S_IWUSR)
+    content = json.dumps(config, indent=2, ensure_ascii=False) + "\n"
+    with FileLock(PROXY_CONFIG, exclusive=True):
+        atomic_write_text(
+            PROXY_CONFIG,
+            content,
+            "utf-8",
+            mode=stat.S_IRUSR | stat.S_IWUSR,
+        )
 
 
 def clear_proxy_config():

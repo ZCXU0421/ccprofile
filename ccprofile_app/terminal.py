@@ -125,7 +125,7 @@ def select_from_list(items, prompt="请选择", default_index=0):
             for _ in range(line_count):
                 sys.stdout.write('\x1b[A\x1b[2K\r')
         rendered = True
-        sys.stdout.write(f"  {prompt}  (\x1b[2m↑↓ 选择 · ← 返回 · → 确认 · Esc 取消\x1b[0m)\n")
+        sys.stdout.write(f"  {prompt}  (\x1b[2m↑↓ 选择 · Enter 确认 · Esc 取消\x1b[0m)\n")
         for i, (_, text) in enumerate(items):
             if i == selected:
                 sys.stdout.write(f"  \x1b[7m > {text}  \x1b[0m\n")
@@ -137,6 +137,8 @@ def select_from_list(items, prompt="请选择", default_index=0):
 
     while True:
         key = _read_key()
+        if key is None:
+            continue
         if key == 'up':
             selected = (selected - 1) % len(items)
             render()
@@ -149,7 +151,7 @@ def select_from_list(items, prompt="请选择", default_index=0):
             sys.stdout.write(f"  \x1b[1m> {items[selected][1]}\x1b[0m\n")
             sys.stdout.flush()
             return items[selected][0]
-        elif key in ('escape', 'q', 'left'):
+        elif key in ('escape', 'q'):
             for _ in range(line_count):
                 sys.stdout.write('\x1b[A\x1b[2K\r')
             sys.stdout.write(f"  已取消\n")

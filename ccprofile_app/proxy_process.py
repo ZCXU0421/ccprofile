@@ -581,6 +581,10 @@ def show_proxy_logs(lines: int = 50):
     Args:
         lines: 要显示的行数
     """
+    if lines < 1:
+        print("行数必须大于等于 1。")
+        return
+
     if not PROXY_LOG.exists():
         print("代理日志文件不存在。")
         return

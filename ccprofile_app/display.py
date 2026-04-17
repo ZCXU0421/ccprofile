@@ -39,10 +39,13 @@ RESET   = "\x1b[0m"
 # TTY detection
 # ---------------------------------------------------------------------------
 
-USE_ANSI = sys.stdout.isatty()
+def use_ansi() -> bool:
+    """Return True if stdout is a TTY (colors enabled)."""
+    return sys.stdout.isatty()
+
 
 # When not a TTY, neutralise all escape sequences.
-if not USE_ANSI:
+if not use_ansi():
     CYAN = GREEN = RED = YELLOW = BOLD = DIM = REVERSE = RESET = ""
 
 # ---------------------------------------------------------------------------
@@ -52,7 +55,7 @@ if not USE_ANSI:
 
 def _term_width() -> int:
     """Return effective terminal width, clamped to [40, 60]. Non-TTY: 80."""
-    if not USE_ANSI:
+    if not use_ansi():
         return 80
     return max(40, min(60, shutil.get_terminal_size().columns))
 
@@ -206,7 +209,7 @@ def sub_panel(title: str, body_lines: list, indent: int = 2, width: int = None) 
     # Box inner = content between sub-panel's own │ borders
     box_inner = box_w - 2  # subtract left │ and right │
 
-    if not USE_ANSI:
+    if not use_ansi():
         lines_out = [f"{prefix}{title}"]
         for line in body_lines:
             if isinstance(line, str):
@@ -263,7 +266,7 @@ def panel(title: str, right_text: str, body_lines: list, width: int = None) -> s
     w = width or _term_width()
     inner = w - 2  # content width between │ borders
 
-    if not USE_ANSI:
+    if not use_ansi():
         lines_out = [f"  {title}  {right_text}"]
         for line in body_lines:
             if isinstance(line, str):

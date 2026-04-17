@@ -9,7 +9,7 @@ from .constants import HOOK_EVENTS
 def generate_hooks(hooks_config):
     """从简化配置生成完整的 Claude Code hooks 结构。"""
     bark_key = hooks_config["bark_key"]
-    host = hooks_config["host_label"]
+    host = hooks_config.get("host_label", "unknown")
     sound = hooks_config.get("sound", "")
 
     result = {}

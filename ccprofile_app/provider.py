@@ -157,6 +157,7 @@ def cmd_provider_edit(args):
 
     print(f"编辑提供商 '{name}'。按回车保留当前值。")
     provider = prompt_provider_fields(providers[name])
+    _validate_url(provider["base_url"])
     providers[name] = provider
     save_providers(providers)
     print(f"提供商 '{name}' 已更新。")

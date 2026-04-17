@@ -131,14 +131,18 @@ class ProxyConfig:
         if model.startswith(virtual_prefix):
             slot = model[len(virtual_prefix):]
             if slot in model_mapping:
-                return model_mapping.get(slot)
+                target = model_mapping.get(slot)
+                if isinstance(target, dict):
+                    return target
 
         # Fallback：匹配旧的 Claude 模型名前缀
         for slot, prefixes in self._legacy_model_slot_prefixes.items():
             if isinstance(prefixes, str):
                 prefixes = (prefixes,)
             if any(model.startswith(prefix) for prefix in prefixes):
-                return model_mapping.get(slot)
+                target = model_mapping.get(slot)
+                if isinstance(target, dict):
+                    return target
 
         return None
 
