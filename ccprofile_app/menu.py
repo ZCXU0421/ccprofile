@@ -11,7 +11,6 @@ from .terminal import select_from_list
 
 MAIN_MENU = [
     ("switch",      "切换配置"),
-    ("_view",       "查看配置"),
     ("_manage",     "管理配置"),
     ("_provider",   "提供商管理"),
     ("_system",     "系统设置"),
@@ -25,8 +24,8 @@ VIEW_MENU = [
 ]
 
 MANAGE_MENU = [
+    ("_view",  "查看配置"),
     ("add",    "添加配置"),
-    ("show",   "查看配置详情"),
     ("edit",   "编辑配置"),
     ("teams",  "切换 Teams 模式"),
     ("delete", "删除配置"),
@@ -144,6 +143,7 @@ def interactive_menu():
 
     current_menu = MAIN_MENU
     current_prompt = "请选择操作"
+    menu_stack = []
 
     while True:
         meta = load_meta() if KEY_FILE.exists() else {}
@@ -162,15 +162,15 @@ def interactive_menu():
 
         # 取消 / 退出
         if selected is None or selected == "__exit__":
-            if current_menu is MAIN_MENU:
+            if not menu_stack:
                 print("  再见！")
                 break
-            current_menu = MAIN_MENU
-            current_prompt = "请选择操作"
+            current_prompt, current_menu = menu_stack.pop()
             continue
 
         # 子菜单入口
         if selected in SUB_MENUS:
+            menu_stack.append((current_prompt, current_menu))
             current_prompt, current_menu = SUB_MENUS[selected]
             continue
 
