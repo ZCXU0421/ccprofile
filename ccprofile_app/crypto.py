@@ -8,6 +8,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from .constants import PROFILE_DIR, KEY_FILE
 from .filelock import FileLock
+from .i18n import t
 
 
 def _init_hint():
@@ -20,7 +21,7 @@ def _init_hint():
 def load_key():
     """加载 Fernet 密钥。"""
     if not KEY_FILE.exists():
-        print(f"错误: 未初始化。请先运行: {_init_hint()}")
+        print(t("crypto.not_initialized", hint=_init_hint()))
         sys.exit(1)
     return KEY_FILE.read_bytes().strip()
 
@@ -49,5 +50,5 @@ def decrypt_data(raw, key):
     try:
         return json.loads(Fernet(key).decrypt(raw).decode())
     except InvalidToken:
-        print("错误: 解密失败，密钥可能不匹配或数据已损坏。请尝试重新初始化。")
+        print(t("crypto.decrypt_failed"))
         sys.exit(1)

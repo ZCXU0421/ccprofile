@@ -19,6 +19,7 @@ from .constants import (
 )
 from .crypto import decrypt_data, encrypt_data, load_key
 from .filelock import FileLock
+from .i18n import t
 
 
 def atomic_write_bytes(path, data, mode=None):
@@ -77,7 +78,7 @@ def migrate_from_legacy():
             moved.append(src.name)
 
     if moved:
-        print(f"已将旧配置迁移到 {PROFILE_DIR}：{', '.join(moved)}")
+        print(t("storage.migration_done", dir=PROFILE_DIR, files=", ".join(moved)))
     return bool(moved)
 
 

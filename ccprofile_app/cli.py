@@ -29,6 +29,7 @@ from .commands import (  # noqa: E402
     cmd_teams,
 )
 from .constants import VERSION  # noqa: E402
+from .i18n import init_language, t  # noqa: E402
 from .menu import interactive_menu  # noqa: E402
 from .provider import (  # noqa: E402
     cmd_provider_add,
@@ -44,109 +45,110 @@ def build_parser():
     """构建 argparse 解析器。"""
     parser = argparse.ArgumentParser(
         prog="ccprofile",
-        description="Claude Code API 配置管理工具"
+        description=t("cli.description")
     )
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {VERSION}")
     sub = parser.add_subparsers(dest="command")
 
     # init
-    sub.add_parser("init", help="初始化：生成加密密钥")
+    sub.add_parser("init", help=t("cli.init_help"))
 
     # add
-    p_add = sub.add_parser("add", help="添加配置")
-    p_add.add_argument("name", help="配置名称")
-    p_add.add_argument("--mode", choices=["single", "mixed"], default="single", help="配置模式 (single/mixed)")
-    p_add.add_argument("-t", "--token", help="API 密钥")
-    p_add.add_argument("-u", "--url", help="API 基础地址")
-    p_add.add_argument("-m", "--model", help="模型 (opus/sonnet/haiku)")
-    p_add.add_argument("-e", "--effort", help="努力等级")
-    p_add.add_argument("--anthropic-model", help="默认模型")
-    p_add.add_argument("--haiku-model", help="Haiku 模型覆盖")
-    p_add.add_argument("--sonnet-model", help="Sonnet 模型覆盖")
-    p_add.add_argument("--opus-model", help="Opus 模型覆盖")
-    p_add.add_argument("--disable-all", action="store_true", help="启用所有禁用标志")
-    p_add.add_argument("--enable-teams", action="store_true", help="启用 Agent Teams 模式")
-    p_add.add_argument("--bark-key", help="Bark 推送 Key")
-    p_add.add_argument("--host-label", help="主机名标签")
-    p_add.add_argument("--notify-sound", help="通知铃声")
-    p_add.add_argument("--hooks-json", help="自定义 hooks JSON 配置")
+    p_add = sub.add_parser("add", help=t("cli.add_help"))
+    p_add.add_argument("name", help=t("cli.add_name_help"))
+    p_add.add_argument("--mode", choices=["single", "mixed"], default="single", help=t("cli.add_mode_help"))
+    p_add.add_argument("-t", "--token", help=t("cli.add_token_help"))
+    p_add.add_argument("-u", "--url", help=t("cli.add_url_help"))
+    p_add.add_argument("-m", "--model", help=t("cli.add_model_help"))
+    p_add.add_argument("-e", "--effort", help=t("cli.add_effort_help"))
+    p_add.add_argument("--anthropic-model", help=t("cli.add_anthropic_model_help"))
+    p_add.add_argument("--haiku-model", help=t("cli.add_haiku_model_help"))
+    p_add.add_argument("--sonnet-model", help=t("cli.add_sonnet_model_help"))
+    p_add.add_argument("--opus-model", help=t("cli.add_opus_model_help"))
+    p_add.add_argument("--disable-all", action="store_true", help=t("cli.add_disable_all_help"))
+    p_add.add_argument("--enable-teams", action="store_true", help=t("cli.add_enable_teams_help"))
+    p_add.add_argument("--bark-key", help=t("cli.add_bark_key_help"))
+    p_add.add_argument("--host-label", help=t("cli.add_host_label_help"))
+    p_add.add_argument("--notify-sound", help=t("cli.add_notify_sound_help"))
+    p_add.add_argument("--hooks-json", help=t("cli.add_hooks_json_help"))
 
     # switch
-    p_sw = sub.add_parser("switch", help="切换配置")
-    p_sw.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
+    p_sw = sub.add_parser("switch", help=t("cli.switch_help"))
+    p_sw.add_argument("name", nargs="?", default=None, help=t("cli.switch_name_help"))
 
     # list
-    sub.add_parser("list", help="列出所有配置")
+    sub.add_parser("list", help=t("cli.list_help"))
 
     # show
-    p_show = sub.add_parser("show", help="显示配置详情")
-    p_show.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
+    p_show = sub.add_parser("show", help=t("cli.show_help"))
+    p_show.add_argument("name", nargs="?", default=None, help=t("cli.show_name_help"))
 
     # edit
-    p_edit = sub.add_parser("edit", help="编辑配置")
-    p_edit.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
-    p_edit.add_argument("--enable-teams", action="store_true", help="启用 Agent Teams 模式")
-    p_edit.add_argument("--disable-teams", action="store_true", help="禁用 Agent Teams 模式")
+    p_edit = sub.add_parser("edit", help=t("cli.edit_help"))
+    p_edit.add_argument("name", nargs="?", default=None, help=t("cli.edit_name_help"))
+    p_edit.add_argument("--enable-teams", action="store_true", help=t("cli.edit_enable_teams_help"))
+    p_edit.add_argument("--disable-teams", action="store_true", help=t("cli.edit_disable_teams_help"))
 
     # delete
-    p_del = sub.add_parser("delete", help="删除配置")
-    p_del.add_argument("name", nargs="?", default=None, help="配置名称（省略则弹出选择）")
+    p_del = sub.add_parser("delete", help=t("cli.delete_help"))
+    p_del.add_argument("name", nargs="?", default=None, help=t("cli.delete_name_help"))
 
     # current
-    sub.add_parser("current", help="显示当前活动配置")
+    sub.add_parser("current", help=t("cli.current_help"))
 
     # teams
-    p_teams = sub.add_parser("teams", help="切换 Agent Teams 模式")
+    p_teams = sub.add_parser("teams", help=t("cli.teams_help"))
     p_teams.add_argument("action", nargs="?", choices=["on", "off", "toggle"],
-                         default="toggle", help="操作 (on/off/toggle，默认 toggle)")
+                         default="toggle", help=t("cli.teams_action_help"))
     p_teams.add_argument("--apply", action="store_true",
-                         help="同时更新 settings.json 使变更立即生效")
+                         help=t("cli.teams_apply_help"))
 
     # provider
-    p_prov = sub.add_parser("provider", help="提供商管理")
+    p_prov = sub.add_parser("provider", help=t("cli.provider_help"))
     prov_sub = p_prov.add_subparsers(dest="provider_command")
 
     # provider add
-    p_prov_add = prov_sub.add_parser("add", help="添加提供商")
-    p_prov_add.add_argument("name", help="提供商名称")
-    p_prov_add.add_argument("-u", "--url", help="API 基础地址或 /v1/messages 端点")
-    p_prov_add.add_argument("-k", "--key", help="API 密钥")
-    p_prov_add.add_argument("-m", "--models", help="可用模型 (逗号分隔)")
+    p_prov_add = prov_sub.add_parser("add", help=t("cli.provider_add_help"))
+    p_prov_add.add_argument("name", help=t("cli.provider_name_help"))
+    p_prov_add.add_argument("-u", "--url", help=t("cli.provider_url_help"))
+    p_prov_add.add_argument("-k", "--key", help=t("cli.provider_key_help"))
+    p_prov_add.add_argument("-m", "--models", help=t("cli.provider_models_help"))
 
     # provider list
-    prov_sub.add_parser("list", help="列出所有提供商")
+    prov_sub.add_parser("list", help=t("cli.provider_list_help"))
 
     # provider show
-    p_prov_show = prov_sub.add_parser("show", help="显示提供商详情")
-    p_prov_show.add_argument("name", nargs="?", default=None, help="提供商名称（省略则弹出选择）")
+    p_prov_show = prov_sub.add_parser("show", help=t("cli.provider_show_help"))
+    p_prov_show.add_argument("name", nargs="?", default=None, help=t("cli.provider_show_name_help"))
 
     # provider edit
-    p_prov_edit = prov_sub.add_parser("edit", help="编辑提供商")
-    p_prov_edit.add_argument("name", nargs="?", default=None, help="提供商名称（省略则弹出选择）")
+    p_prov_edit = prov_sub.add_parser("edit", help=t("cli.provider_edit_help"))
+    p_prov_edit.add_argument("name", nargs="?", default=None, help=t("cli.provider_edit_name_help"))
 
     # provider delete
-    p_prov_delete = prov_sub.add_parser("delete", help="删除提供商")
-    p_prov_delete.add_argument("name", nargs="?", default=None, help="提供商名称（省略则弹出选择）")
+    p_prov_delete = prov_sub.add_parser("delete", help=t("cli.provider_delete_help"))
+    p_prov_delete.add_argument("name", nargs="?", default=None, help=t("cli.provider_delete_name_help"))
 
     # proxy
-    p_proxy = sub.add_parser("proxy", help="代理管理")
+    p_proxy = sub.add_parser("proxy", help=t("cli.proxy_help"))
     proxy_sub = p_proxy.add_subparsers(dest="proxy_command")
 
     # proxy status
-    proxy_sub.add_parser("status", help="显示代理状态")
+    proxy_sub.add_parser("status", help=t("cli.proxy_status_help"))
 
     # proxy stop
-    proxy_sub.add_parser("stop", help="停止代理")
+    proxy_sub.add_parser("stop", help=t("cli.proxy_stop_help"))
 
     # proxy logs
-    p_proxy_logs = proxy_sub.add_parser("logs", help="显示代理日志")
-    p_proxy_logs.add_argument("-n", "--lines", type=int, default=50, help="显示最后 N 行 (默认 50)")
+    p_proxy_logs = proxy_sub.add_parser("logs", help=t("cli.proxy_logs_help"))
+    p_proxy_logs.add_argument("-n", "--lines", type=int, default=50, help=t("cli.proxy_logs_lines_help"))
 
     return parser
 
 
 def main():
     """CLI 主入口。"""
+    init_language()
     # 内部代理模式：PyInstaller 打包后通过 --_internal-proxy 启动代理子进程
     if len(sys.argv) > 1 and sys.argv[1] == "--_internal-proxy":
         sys.argv = [sys.argv[0]] + sys.argv[2:]  # 移除 --_internal-proxy，保留其余参数

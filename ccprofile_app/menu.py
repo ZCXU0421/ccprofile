@@ -2,53 +2,65 @@
 
 from .commands import cmd_add, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch, cmd_teams
 from .constants import KEY_FILE
+from .i18n import get_language, set_language, t
 from .provider import cmd_provider_add, cmd_provider_delete, cmd_provider_edit, cmd_provider_list, cmd_provider_show
 from .storage import load_meta
 from .picker import pick_profile, pick_provider
 from .terminal import select_from_list
 
-# ── 菜单结构定义 ──
 
-MAIN_MENU = [
-    ("switch",      "切换配置"),
-    ("_manage",     "管理配置"),
-    ("_provider",   "提供商管理"),
-    ("_system",     "系统设置"),
-    ("__exit__",    "退出"),
-]
+def _main_menu():
+    return [
+        ("switch",      t("menu.switch_profile")),
+        ("_manage",     t("menu.manage_profiles")),
+        ("_provider",   t("menu.provider_mgmt")),
+        ("_system",     t("menu.system_settings")),
+        ("__exit__",    t("menu.exit")),
+    ]
 
-VIEW_MENU = [
-    ("list",    "列出所有配置"),
-    ("current", "显示当前活动配置"),
-    ("show",    "显示配置详情"),
-]
 
-MANAGE_MENU = [
-    ("_view",  "查看配置"),
-    ("add",    "添加配置"),
-    ("edit",   "编辑配置"),
-    ("teams",  "切换 Teams 模式"),
-    ("delete", "删除配置"),
-]
+def _view_menu():
+    return [
+        ("list",    t("menu.list_profiles")),
+        ("current", t("menu.show_current")),
+        ("show",    t("menu.show_profile")),
+    ]
 
-SYSTEM_MENU = [
-    ("init",    "初始化 / 重置密钥"),
-]
 
-PROVIDER_MENU = [
-    ("provider_add",    "添加提供商"),
-    ("provider_list",   "列出所有提供商"),
-    ("provider_show",   "显示提供商详情"),
-    ("provider_edit",   "编辑提供商"),
-    ("provider_delete", "删除提供商"),
-]
+def _manage_menu():
+    return [
+        ("_view",  t("menu.view_profiles")),
+        ("add",    t("menu.add_profile")),
+        ("edit",   t("menu.edit_profile")),
+        ("teams",  t("menu.switch_teams")),
+        ("delete", t("menu.delete_profile")),
+    ]
 
-SUB_MENUS = {
-    "_view":     ("查看配置", VIEW_MENU),
-    "_manage":   ("管理配置", MANAGE_MENU),
-    "_provider": ("提供商管理", PROVIDER_MENU),
-    "_system":   ("系统设置", SYSTEM_MENU),
-}
+
+def _system_menu():
+    return [
+        ("init",     t("menu.init_reset")),
+        ("language", t("menu.language_settings")),
+    ]
+
+
+def _provider_menu():
+    return [
+        ("provider_add",    t("menu.add_provider")),
+        ("provider_list",   t("menu.list_providers")),
+        ("provider_show",   t("menu.show_provider")),
+        ("provider_edit",   t("menu.edit_provider")),
+        ("provider_delete", t("menu.delete_provider")),
+    ]
+
+
+def _sub_menus():
+    return {
+        "_view":     (t("menu.view_profiles"), _view_menu()),
+        "_manage":   (t("menu.manage_profiles"), _manage_menu()),
+        "_provider": (t("menu.provider_mgmt"), _provider_menu()),
+        "_system":   (t("menu.system_settings"), _system_menu()),
+    }
 
 
 def interactive_menu():
@@ -78,20 +90,20 @@ def interactive_menu():
         args = Args()
 
         if cmd_name == "add":
-            name = input("  配置名称: ").strip()
+            name = input(f"  {t('menu.profile_name_prompt')}: ").strip()
             if not name:
-                print("  已取消。")
+                print(f"  {t('menu.canceled')}")
                 return
             args.name = name
 
             # 模式选择
             mode = select_from_list(
-                [("single", "单一模式 — 一个提供商对应所有模型"),
-                 ("mixed",  "混合模式 — 不同模型使用不同提供商")],
-                "选择配置模式"
+                [("single", t("menu.single_mode_desc")),
+                 ("mixed",  t("menu.mixed_mode_desc"))],
+                t("menu.select_mode")
             )
             if mode is None:
-                print("  已取消。")
+                print(f"  {t('menu.canceled')}")
                 return
             args.mode = mode
 
@@ -110,21 +122,21 @@ def interactive_menu():
             args.notify_sound = None
             args.hooks_json = None
         elif cmd_name == "provider_add":
-            name = input("  提供商名称: ").strip()
+            name = input(f"  {t('menu.provider_name_prompt')}: ").strip()
             if not name:
-                print("  已取消。")
+                print(f"  {t('menu.canceled')}")
                 return
             args.name = name
             args.url = None
             args.key = None
             args.models = None
         elif cmd_name in ("switch", "show", "edit", "delete"):
-            name = pick_profile("选择配置")
+            name = pick_profile(t("menu.view_profiles"))
             if name is None:
                 return
             args.name = name
         elif cmd_name in ("provider_show", "provider_edit", "provider_delete"):
-            name = pick_provider("选择提供商")
+            name = pick_provider(t("menu.provider_mgmt"))
             if name is None:
                 return
             args.name = name
@@ -137,12 +149,13 @@ def interactive_menu():
         except SystemExit:
             pass
         except (EOFError, KeyboardInterrupt):
-            print("\n  操作已取消。")
+            print(f"\n  {t('menu.op_canceled')}")
 
-    print("\n  ccprofile — Claude Code 配置管理")
+    print(f"\n  {t('menu.banner')}")
 
-    current_menu = MAIN_MENU
-    current_prompt = "请选择操作"
+    current_menu = _main_menu()
+    current_prompt = t("menu.select_op")
+    sub_menus = _sub_menus()
     menu_stack = []
 
     while True:
@@ -150,28 +163,40 @@ def interactive_menu():
         active = meta.get("active", "")
 
         if not KEY_FILE.exists():
-            print("  ⚠ 系统尚未初始化，请先进入「系统设置」→「初始化」\n")
+            print(f"  ⚠ {t('menu.not_initialized')}\n")
         elif active:
-            print(f"  当前配置: {active}\n")
+            print(f"  {t('menu.current_profile')}: {active}\n")
 
         try:
             selected = select_from_list(current_menu, current_prompt)
         except (EOFError, KeyboardInterrupt):
-            print("\n  再见！")
+            print(f"\n  {t('menu.goodbye')}")
             break
 
         # 取消 / 退出
         if selected is None or selected == "__exit__":
             if not menu_stack:
-                print("  再见！")
+                print(f"  {t('menu.goodbye')}")
                 break
             current_prompt, current_menu = menu_stack.pop()
+            sub_menus = _sub_menus()
+            continue
+
+        # 语言设置
+        if selected == "language":
+            _handle_language_setting()
+            # 重建当前菜单以反映新语言
+            current_menu = _main_menu()
+            current_prompt = t("menu.select_op")
+            sub_menus = _sub_menus()
+            menu_stack = []
+            print()
             continue
 
         # 子菜单入口
-        if selected in SUB_MENUS:
+        if selected in sub_menus:
             menu_stack.append((current_prompt, current_menu))
-            current_prompt, current_menu = SUB_MENUS[selected]
+            current_prompt, current_menu = sub_menus[selected]
             continue
 
         # 执行命令
@@ -179,3 +204,19 @@ def interactive_menu():
         print()
 
     print()
+
+
+def _handle_language_setting():
+    """处理语言设置。"""
+    current = get_language()
+    items = [
+        ("zh", t("menu.lang_zh")),
+        ("en", t("menu.lang_en")),
+    ]
+    default_idx = 0 if current == "zh" else 1
+    selected = select_from_list(items, t("menu.select_language"), default_index=default_idx)
+    if selected is None:
+        return
+    if selected != current:
+        set_language(selected)
+        print(f"  {t('menu.language_changed')}")

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 from .constants import DEFAULT_PROXY_PORT, PROXY_CONFIG, PROXY_LOG, PROXY_PID
+from .i18n import t
 from .storage import clear_proxy_config, load_proxy_config, save_proxy_config
 
 # 检测操作系统
@@ -374,7 +375,7 @@ def start_proxy(config: dict) -> bool:
     # 检查是否已有运行中的代理
     is_running, pid, _ = proxy_status()
     if is_running:
-        print(f"代理已在运行中 (PID: {pid})")
+        print(t("proxy.already_running", pid=pid))
         return True
 
     # 保存代理配置
@@ -445,15 +446,15 @@ def start_proxy(config: dict) -> bool:
                 ready_file.unlink()
             except OSError:
                 pass
-            print(f"代理已启动 (PID: {process.pid}), 端口: {port}")
+            print(t("proxy.started", pid=process.pid, port=port))
             return True
         else:
             exit_code = process.poll()
             if exit_code is None:
-                print(f"错误: 代理启动超时，未收到子进程就绪信号 (端口: {port})", file=sys.stderr)
+                print(t("proxy.start_timeout", port=port), file=sys.stderr)
             else:
                 print(
-                    f"错误: 代理子进程已退出 (退出码: {exit_code})，端口 {port} 可能已被占用",
+                    t("proxy.start_exit", code=exit_code, port=port),
                     file=sys.stderr,
                 )
             cleanup_failed_start(process, ready_file)
@@ -470,7 +471,7 @@ def start_proxy(config: dict) -> bool:
             except OSError:
                 pass
             clear_proxy_config()
-        print(f"错误: 启动代理失败: {e}", file=sys.stderr)
+        print(t("proxy.start_failed", error=e), file=sys.stderr)
         return False
 
 
@@ -484,7 +485,7 @@ def stop_proxy(quiet: bool = False) -> bool:
     pid = pid_info["pid"] if pid_info else None
     if not pid:
         if not quiet:
-            print("代理未运行")
+            print(t("proxy.not_running"))
         try:
             PROXY_PID.unlink()
         except OSError:
@@ -494,7 +495,7 @@ def stop_proxy(quiet: bool = False) -> bool:
 
     if not is_process_running(pid):
         if not quiet:
-            print(f"代理进程 (PID: {pid}) 未运行，清理 PID 文件")
+            print(t("proxy.pid_not_running", pid=pid))
         try:
             PROXY_PID.unlink()
         except OSError:
@@ -504,7 +505,7 @@ def stop_proxy(quiet: bool = False) -> bool:
 
     if not is_recorded_proxy_process(pid_info):
         if not quiet:
-            print(f"代理 PID 文件已过期或不匹配 (PID: {pid})，已清理")
+            print(t("proxy.pid_stale", pid=pid))
         try:
             PROXY_PID.unlink()
         except OSError:
@@ -540,11 +541,11 @@ def stop_proxy(quiet: bool = False) -> bool:
         clear_proxy_config()
 
         if not quiet:
-            print(f"代理已停止 (PID: {pid})")
+            print(t("proxy.stopped", pid=pid))
         return True
 
     except (OSError, ProcessLookupError) as e:
-        print(f"错误: 停止代理失败: {e}", file=sys.stderr)
+        print(t("proxy.stop_failed", error=e), file=sys.stderr)
         return False
 
 
@@ -582,11 +583,11 @@ def show_proxy_logs(lines: int = 50):
         lines: 要显示的行数
     """
     if lines < 1:
-        print("行数必须大于等于 1。")
+        print(t("proxy.lines_invalid"))
         return
 
     if not PROXY_LOG.exists():
-        print("代理日志文件不存在。")
+        print(t("proxy.log_missing"))
         return
 
     try:
@@ -598,12 +599,12 @@ def show_proxy_logs(lines: int = 50):
                 if lines > 0:
                     recent_lines.append(line.rstrip("\n"))
 
-        print(f"代理日志 ({PROXY_LOG}) - 最后 {len(recent_lines)} 行:")
+        print(t("proxy.log_title", path=PROXY_LOG, n=len(recent_lines)))
         print("-" * 60)
         for line in recent_lines:
             print(line)
         print("-" * 60)
-        print(f"共 {total_lines} 行日志。")
+        print(t("proxy.log_total", n=total_lines))
 
     except Exception as e:
-        print(f"错误: 读取日志文件失败: {e}", file=sys.stderr)
+        print(t("proxy.log_read_error", error=e), file=sys.stderr)
