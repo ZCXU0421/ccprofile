@@ -16,6 +16,7 @@ except ImportError:
 
 from .commands import (  # noqa: E402
     cmd_add,
+    cmd_context_1m,
     cmd_current,
     cmd_delete,
     cmd_edit,
@@ -103,6 +104,13 @@ def build_parser():
     p_teams.add_argument("--apply", action="store_true",
                          help=t("cli.teams_apply_help"))
 
+    # context-1m
+    p_1m = sub.add_parser("context-1m", help=t("cli.1m_help"))
+    p_1m.add_argument("action", nargs="?", choices=["on", "off", "toggle"],
+                      default="toggle", help=t("cli.1m_action_help"))
+    p_1m.add_argument("--apply", action="store_true",
+                      help=t("cli.1m_apply_help"))
+
     # provider
     p_prov = sub.add_parser("provider", help=t("cli.provider_help"))
     prov_sub = p_prov.add_subparsers(dest="provider_command")
@@ -175,6 +183,7 @@ def main():
         "delete": cmd_delete,
         "current": cmd_current,
         "teams": cmd_teams,
+        "context-1m": cmd_context_1m,
     }
 
     provider_commands = {

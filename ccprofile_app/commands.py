@@ -45,6 +45,17 @@ def _normalize_teams_flag(profile):
     profile["enableTeams"] = env.pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None) == "1"
 
 
+def _normalize_1m_context_flag(profile):
+    """统一处理 enable1MContext 字段，兼容旧格式。"""
+    if "enable1MContext" in profile:
+        return
+    env = profile.get("env", {})
+    # 旧格式：env 中存在 CLAUDE_CODE_DISABLE_1M_CONTEXT=1 表示未启用
+    # 缺失时默认禁用 1M context，与新 profile 的默认值保持一致
+    disable_env = env.pop("CLAUDE_CODE_DISABLE_1M_CONTEXT", None)
+    profile["enable1MContext"] = False if disable_env is None else disable_env != "1"
+
+
 def cmd_init(_args):
     """初始化：生成加密密钥。"""
     from .constants import KEY_FILE, PROVIDERS_ENC
@@ -133,6 +144,10 @@ def cmd_add(args):
     # --enable-teams 在所有模式下都生效
     if args.enable_teams:
         profile["enableTeams"] = True
+    else:
+        profile["enableTeams"] = True  # 默认开启
+
+    profile.setdefault("enable1MContext", False)  # 默认关闭
 
     profiles[name] = profile
     save_profiles(profiles)
@@ -155,6 +170,7 @@ def cmd_switch(args):
     profile = profiles[name]
     mode = profile.get("mode", "single")
     _normalize_teams_flag(profile)
+    _normalize_1m_context_flag(profile)
 
     # 备份当前 settings.json
     backup_settings()
@@ -230,6 +246,10 @@ def cmd_switch(args):
     if profile.get("enableTeams"):
         settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
 
+    # 写入 1M 上下文环境变量（关闭时设置 DISABLE 标志）
+    if not profile.get("enable1MContext"):
+        settings["env"]["CLAUDE_CODE_DISABLE_1M_CONTEXT"] = "1"
+
     if "model" in profile:
         settings["model"] = profile["model"]
     if "effortLevel" in profile:
@@ -274,6 +294,7 @@ def cmd_list(_args):
         prof_copy = dict(prof)
         prof_copy["env"] = dict(prof.get("env", {}))
         _normalize_teams_flag(prof_copy)
+        _normalize_1m_context_flag(prof_copy)
         is_active = (name == active)
         prefix = active_marker() if is_active else "  "
         mode = prof_copy.get("mode", "single")
@@ -286,6 +307,8 @@ def cmd_list(_args):
         line1 = f"{prefix}{name}{' *' if is_active else ''}    {mode_tag}"
         if prof_copy.get("enableTeams"):
             line1 += "    👥 Teams"
+        if prof_copy.get("enable1MContext"):
+            line1 += "    📏 1M"
         if "hooks" in prof_copy:
             line1 += "    \U0001f514"
         body.append(line1)
@@ -319,6 +342,7 @@ def cmd_show(args):
     prof_copy = dict(prof)
     prof_copy["env"] = dict(prof.get("env", {}))
     _normalize_teams_flag(prof_copy)
+    _normalize_1m_context_flag(prof_copy)
     mode = prof_copy.get("mode", "single")
     mode_label = t("cmd.mode_mixed") if mode == "mixed" else t("cmd.mode_single")
 
@@ -328,6 +352,8 @@ def cmd_show(args):
     body.append(kv(t("cmd.show.effort"), prof_copy.get("effortLevel", "high")))
     teams_status = f"{GREEN}{t('cmd.show.teams_enabled')}{RESET}" if prof_copy.get("enableTeams") else f"{DIM}{t('cmd.show.teams_disabled')}{RESET}"
     body.append(kv(t("cmd.show.teams_mode"), teams_status))
+    ctx_1m_status = f"{GREEN}{t('cmd.show.1m_enabled')}{RESET}" if prof_copy.get("enable1MContext") else f"{DIM}{t('cmd.show.1m_disabled')}{RESET}"
+    body.append(kv(t("cmd.show.1m_context"), ctx_1m_status))
     body.append("")
 
     if mode == "mixed":
@@ -403,8 +429,10 @@ def cmd_edit(args):
 
     old = profiles[name]
     _normalize_teams_flag(old)
+    _normalize_1m_context_flag(old)
     mode = old.get("mode", "single")
     old_teams = old.get("enableTeams")
+    old_1m = old.get("enable1MContext")
 
     # 仅切换 Teams flag 时跳过交互流程
     teams_only = (getattr(args, "enable_teams", False) or getattr(args, "disable_teams", False))
@@ -419,6 +447,7 @@ def cmd_edit(args):
             profile = prompt_profile_fields(old)
             profile["mode"] = "single"
         profile["enableTeams"] = old_teams
+        profile["enable1MContext"] = old_1m
     # CLI flags override
     if getattr(args, "enable_teams", False) and getattr(args, "disable_teams", False):
         print(t("cmd.edit_teams_conflict"))
@@ -487,6 +516,7 @@ def cmd_current(_args):
     prof_copy = dict(prof)
     prof_copy["env"] = dict(prof.get("env", {}))
     _normalize_teams_flag(prof_copy)
+    _normalize_1m_context_flag(prof_copy)
     mode = prof_copy.get("mode", "single")
     mode_label = t("cmd.mode_mixed") if mode == "mixed" else t("cmd.mode_single")
     title = f"{active_marker()}{active}"
@@ -495,6 +525,7 @@ def cmd_current(_args):
     body.append("")
 
     teams_status = f"{GREEN}{t('cmd.show.teams_enabled')}{RESET}" if prof_copy.get("enableTeams") else f"{DIM}{t('cmd.show.teams_disabled')}{RESET}"
+    ctx_1m_status = f"{GREEN}{t('cmd.show.1m_enabled')}{RESET}" if prof_copy.get("enable1MContext") else f"{DIM}{t('cmd.show.1m_disabled')}{RESET}"
 
     if mode == "mixed":
         proxy_info = get_proxy_info()
@@ -503,6 +534,7 @@ def cmd_current(_args):
             body.append(f"{t('cmd.proxy_pid')}: {proxy_info['pid']}  {t('cmd.proxy_port')}: {proxy_info.get('port', 'N/A')}")
         body.append("")
         body.append(kv(t("cmd.show.teams_mode"), teams_status))
+        body.append(kv(t("cmd.show.1m_context"), ctx_1m_status))
         body.append("")
         # 模型映射子面板
         mapping_lines = []
@@ -513,6 +545,7 @@ def cmd_current(_args):
         body.append(kv(t("cmd.show.model"), prof_copy.get("model", "N/A")))
         body.append(kv(t("cmd.show.effort"), prof_copy.get("effortLevel", "high")))
         body.append(kv(t("cmd.show.teams_mode"), teams_status))
+        body.append(kv(t("cmd.show.1m_context"), ctx_1m_status))
         url = prof_copy.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
         body.append(kv(t("fields.base_url"), url))
 
@@ -594,4 +627,50 @@ def _apply_teams_to_settings(profile, name):
         settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
     else:
         settings["env"].pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
+    write_settings(settings)
+
+
+def cmd_context_1m(args):
+    """切换当前配置的 1M 上下文。"""
+    meta = load_meta()
+    active = meta.get("active")
+    if not active:
+        print(t("cmd.1m_no_active"))
+        sys.exit(1)
+
+    profiles = load_profiles()
+    if active not in profiles:
+        print(t("cmd.1m_missing", active=active))
+        sys.exit(1)
+
+    profile = profiles[active]
+    _normalize_1m_context_flag(profile)
+
+    action = getattr(args, "action", "toggle") or "toggle"
+    if action == "on":
+        profile["enable1MContext"] = True
+    elif action == "off":
+        profile["enable1MContext"] = False
+    else:  # toggle
+        profile["enable1MContext"] = not profile.get("enable1MContext", False)
+
+    profiles[active] = profile
+    save_profiles(profiles)
+
+    status = t("cmd.1m_enabled") if profile["enable1MContext"] else t("cmd.1m_disabled")
+    print(t("cmd.1m_done", name=active, status=status))
+
+    if args.apply:
+        _apply_1m_context_to_settings(profile, active)
+
+
+def _apply_1m_context_to_settings(profile, name):
+    """将 1M 上下文状态应用到 settings.json，无需完整 switch。"""
+    settings = read_settings()
+    if "env" not in settings:
+        settings["env"] = {}
+    if not profile.get("enable1MContext"):
+        settings["env"]["CLAUDE_CODE_DISABLE_1M_CONTEXT"] = "1"
+    else:
+        settings["env"].pop("CLAUDE_CODE_DISABLE_1M_CONTEXT", None)
     write_settings(settings)

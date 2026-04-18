@@ -1,6 +1,6 @@
 """交互式菜单主循环。"""
 
-from .commands import cmd_add, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch, cmd_teams
+from .commands import cmd_add, cmd_context_1m, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch, cmd_teams
 from .constants import KEY_FILE
 from .i18n import get_language, set_language, t
 from .provider import cmd_provider_add, cmd_provider_delete, cmd_provider_edit, cmd_provider_list, cmd_provider_show
@@ -29,11 +29,18 @@ def _view_menu():
 
 def _manage_menu():
     return [
-        ("_view",  t("menu.view_profiles")),
-        ("add",    t("menu.add_profile")),
-        ("edit",   t("menu.edit_profile")),
-        ("teams",  t("menu.switch_teams")),
-        ("delete", t("menu.delete_profile")),
+        ("_view",     t("menu.view_profiles")),
+        ("add",       t("menu.add_profile")),
+        ("edit",      t("menu.edit_profile")),
+        ("_advanced", t("menu.advanced_settings")),
+        ("delete",    t("menu.delete_profile")),
+    ]
+
+
+def _advanced_menu():
+    return [
+        ("teams",      t("menu.switch_teams")),
+        ("context_1m", t("menu.switch_1m_context")),
     ]
 
 
@@ -60,6 +67,7 @@ def _sub_menus():
         "_manage":   (t("menu.manage_profiles"), _manage_menu()),
         "_provider": (t("menu.provider_mgmt"), _provider_menu()),
         "_system":   (t("menu.system_settings"), _system_menu()),
+        "_advanced": (t("menu.advanced_settings"), _advanced_menu()),
     }
 
 
@@ -75,6 +83,7 @@ def interactive_menu():
         "edit": cmd_edit,
         "delete": cmd_delete,
         "teams": cmd_teams,
+        "context_1m": cmd_context_1m,
         "provider_add": cmd_provider_add,
         "provider_list": cmd_provider_list,
         "provider_show": cmd_provider_show,
@@ -141,6 +150,9 @@ def interactive_menu():
                 return
             args.name = name
         elif cmd_name == "teams":
+            args.action = "toggle"
+            args.apply = True
+        elif cmd_name == "context_1m":
             args.action = "toggle"
             args.apply = True
 
