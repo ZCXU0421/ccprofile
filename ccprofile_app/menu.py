@@ -148,7 +148,10 @@ def interactive_menu():
     while True:
         meta = load_meta() if KEY_FILE.exists() else {}
         active = meta.get("active", "")
-        if active:
+
+        if not KEY_FILE.exists():
+            print("  ⚠ 系统尚未初始化，请先进入「系统设置」→「初始化」\n")
+        elif active:
             print(f"  当前配置: {active}\n")
 
         try:

@@ -10,10 +10,17 @@ from .constants import PROFILE_DIR, KEY_FILE
 from .filelock import FileLock
 
 
+def _init_hint():
+    """返回当前环境下正确的初始化命令。"""
+    if getattr(sys, 'frozen', False):
+        return f"{os.path.basename(sys.executable)} init"
+    return "python ccprofile.py init"
+
+
 def load_key():
     """加载 Fernet 密钥。"""
     if not KEY_FILE.exists():
-        print("错误: 未初始化。请先运行: python ccprofile.py init")
+        print(f"错误: 未初始化。请先运行: {_init_hint()}")
         sys.exit(1)
     return KEY_FILE.read_bytes().strip()
 
@@ -42,5 +49,5 @@ def decrypt_data(raw, key):
     try:
         return json.loads(Fernet(key).decrypt(raw).decode())
     except InvalidToken:
-        print("错误: 解密失败，密钥可能不匹配或数据已损坏。")
+        print("错误: 解密失败，密钥可能不匹配或数据已损坏。请尝试重新初始化。")
         sys.exit(1)
