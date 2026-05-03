@@ -1,8 +1,28 @@
 """交互式菜单主循环。"""
 
-from .commands import cmd_add, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch, cmd_teams
+from .commands import (
+    cmd_add,
+    cmd_context_1m,
+    cmd_current,
+    cmd_delete,
+    cmd_edit,
+    cmd_init,
+    cmd_list,
+    cmd_show,
+    cmd_switch,
+    cmd_teams,
+)
 from .constants import KEY_FILE
 from .provider import cmd_provider_add, cmd_provider_delete, cmd_provider_edit, cmd_provider_list, cmd_provider_show
+from .sync import (
+    cmd_sync_auto,
+    cmd_sync_config,
+    cmd_sync_pull,
+    cmd_sync_push,
+    cmd_sync_reset,
+    cmd_sync_status,
+    cmd_sync_strategy,
+)
 from .storage import load_meta
 from .picker import pick_profile, pick_provider
 from .terminal import select_from_list
@@ -27,12 +47,18 @@ MANAGE_MENU = [
     ("_view",  "查看配置"),
     ("add",    "添加配置"),
     ("edit",   "编辑配置"),
-    ("teams",  "切换 Teams 模式"),
+    ("_advanced", "其它设定"),
     ("delete", "删除配置"),
+]
+
+ADVANCED_MENU = [
+    ("teams", "切换 Teams 模式"),
+    ("context_1m", "切换 1M 上下文"),
 ]
 
 SYSTEM_MENU = [
     ("init",    "初始化 / 重置密钥"),
+    ("_sync",   "同步管理"),
 ]
 
 PROVIDER_MENU = [
@@ -43,11 +69,23 @@ PROVIDER_MENU = [
     ("provider_delete", "删除提供商"),
 ]
 
+SYNC_MENU = [
+    ("sync_auto", "立即同步"),
+    ("sync_config", "配置 WebDAV 同步"),
+    ("sync_status", "查看同步状态"),
+    ("sync_push", "推送数据到远端"),
+    ("sync_pull", "从远端拉取数据"),
+    ("sync_strategy", "冲突解决策略"),
+    ("sync_reset", "重置同步配置"),
+]
+
 SUB_MENUS = {
     "_view":     ("查看配置", VIEW_MENU),
     "_manage":   ("管理配置", MANAGE_MENU),
+    "_advanced": ("其它设定", ADVANCED_MENU),
     "_provider": ("提供商管理", PROVIDER_MENU),
     "_system":   ("系统设置", SYSTEM_MENU),
+    "_sync":     ("同步管理", SYNC_MENU),
 }
 
 
@@ -63,6 +101,14 @@ def interactive_menu():
         "edit": cmd_edit,
         "delete": cmd_delete,
         "teams": cmd_teams,
+        "context_1m": cmd_context_1m,
+        "sync_auto": cmd_sync_auto,
+        "sync_config": cmd_sync_config,
+        "sync_status": cmd_sync_status,
+        "sync_push": cmd_sync_push,
+        "sync_pull": cmd_sync_pull,
+        "sync_strategy": cmd_sync_strategy,
+        "sync_reset": cmd_sync_reset,
         "provider_add": cmd_provider_add,
         "provider_list": cmd_provider_list,
         "provider_show": cmd_provider_show,
@@ -131,6 +177,13 @@ def interactive_menu():
         elif cmd_name == "teams":
             args.action = "toggle"
             args.apply = True
+        elif cmd_name == "context_1m":
+            args.action = "toggle"
+            args.apply = True
+        elif cmd_name in ("sync_push", "sync_pull"):
+            args.force = False
+        elif cmd_name == "sync_strategy":
+            args.strategy_arg = None
 
         try:
             commands_map[cmd_name](args)

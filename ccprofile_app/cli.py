@@ -16,6 +16,7 @@ except ImportError:
 
 from .commands import (  # noqa: E402
     cmd_add,
+    cmd_context_1m,
     cmd_current,
     cmd_delete,
     cmd_edit,
@@ -37,6 +38,15 @@ from .provider import (  # noqa: E402
     cmd_provider_edit,
     cmd_provider_list,
     cmd_provider_show,
+)
+from .sync import (  # noqa: E402
+    cmd_sync_auto,
+    cmd_sync_config,
+    cmd_sync_pull,
+    cmd_sync_push,
+    cmd_sync_reset,
+    cmd_sync_status,
+    cmd_sync_strategy,
 )
 from .storage import migrate_from_legacy  # noqa: E402
 
@@ -103,6 +113,13 @@ def build_parser():
     p_teams.add_argument("--apply", action="store_true",
                          help=t("cli.teams_apply_help"))
 
+    # context-1m
+    p_context_1m = sub.add_parser("context-1m", help=t("cli.1m_help"))
+    p_context_1m.add_argument("action", nargs="?", choices=["on", "off", "toggle"],
+                              default="toggle", help=t("cli.1m_action_help"))
+    p_context_1m.add_argument("--apply", action="store_true",
+                              help=t("cli.1m_apply_help"))
+
     # provider
     p_prov = sub.add_parser("provider", help=t("cli.provider_help"))
     prov_sub = p_prov.add_subparsers(dest="provider_command")
@@ -143,6 +160,31 @@ def build_parser():
     p_proxy_logs = proxy_sub.add_parser("logs", help=t("cli.proxy_logs_help"))
     p_proxy_logs.add_argument("-n", "--lines", type=int, default=50, help=t("cli.proxy_logs_lines_help"))
 
+    # sync
+    p_sync = sub.add_parser("sync", help=t("cli.sync_help"))
+    sync_sub = p_sync.add_subparsers(dest="sync_command")
+
+    sync_sub.add_parser("config", help=t("cli.sync_config_help"))
+
+    p_sync_push = sync_sub.add_parser("push", help=t("cli.sync_push_help"))
+    p_sync_push.add_argument("--force", action="store_true", help=t("cli.sync_force_help"))
+
+    p_sync_pull = sync_sub.add_parser("pull", help=t("cli.sync_pull_help"))
+    p_sync_pull.add_argument("--force", action="store_true", help=t("cli.sync_force_help"))
+
+    sync_sub.add_parser("status", help=t("cli.sync_status_help"))
+
+    p_sync_strategy = sync_sub.add_parser("strategy", help=t("cli.sync_strategy_help"))
+    p_sync_strategy.add_argument(
+        "strategy_arg",
+        nargs="?",
+        default=None,
+        choices=["merge", "local-wins", "remote-wins"],
+        help=t("cli.sync_strategy_arg_help"),
+    )
+
+    sync_sub.add_parser("reset", help=t("cli.sync_reset_help"))
+
     return parser
 
 
@@ -175,6 +217,7 @@ def main():
         "delete": cmd_delete,
         "current": cmd_current,
         "teams": cmd_teams,
+        "context-1m": cmd_context_1m,
     }
 
     provider_commands = {
@@ -191,6 +234,15 @@ def main():
         "logs": cmd_proxy_logs,
     }
 
+    sync_commands = {
+        "config": cmd_sync_config,
+        "push": cmd_sync_push,
+        "pull": cmd_sync_pull,
+        "status": cmd_sync_status,
+        "strategy": cmd_sync_strategy,
+        "reset": cmd_sync_reset,
+    }
+
     if args.command == "provider":
         if args.provider_command:
             provider_commands[args.provider_command](args)
@@ -201,5 +253,10 @@ def main():
             proxy_commands[args.proxy_command](args)
         else:
             parser.parse_args(["proxy", "--help"])
+    elif args.command == "sync":
+        if args.sync_command:
+            sync_commands[args.sync_command](args)
+        else:
+            cmd_sync_auto(args)
     else:
         commands[args.command](args)

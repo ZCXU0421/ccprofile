@@ -42,6 +42,8 @@ STRINGS = {
     "menu.add_profile": {"zh": "添加配置", "en": "Add Profile"},
     "menu.edit_profile": {"zh": "编辑配置", "en": "Edit Profile"},
     "menu.switch_teams": {"zh": "切换 Teams 模式", "en": "Switch Teams Mode"},
+    "menu.switch_1m_context": {"zh": "切换 1M 上下文", "en": "Toggle 1M Context"},
+    "menu.advanced_settings": {"zh": "其它设定", "en": "Advanced Settings"},
     "menu.delete_profile": {"zh": "删除配置", "en": "Delete Profile"},
     "menu.init_reset": {"zh": "初始化 / 重置密钥", "en": "Init / Reset Key"},
     "menu.add_provider": {"zh": "添加提供商", "en": "Add Provider"},
@@ -187,6 +189,20 @@ STRINGS = {
     },
     "cmd.teams_enabled": {"zh": "已启用", "en": "enabled"},
     "cmd.teams_disabled": {"zh": "已禁用", "en": "disabled"},
+    "cmd.1m_no_active": {
+        "zh": "错误: 当前无活动配置。请先使用 'switch' 切换到某个配置。",
+        "en": "Error: No active profile. Use 'switch' to select one first.",
+    },
+    "cmd.1m_missing": {
+        "zh": "错误: 活动配置 '{active}' 不存在。",
+        "en": "Error: Active profile '{active}' does not exist.",
+    },
+    "cmd.1m_done": {
+        "zh": "配置 '{name}' 的 1M 上下文{status}。",
+        "en": "1M context {status} for profile '{name}'.",
+    },
+    "cmd.1m_enabled": {"zh": "已启用", "en": "enabled"},
+    "cmd.1m_disabled": {"zh": "已禁用", "en": "disabled"},
     "cmd.proxy_running": {"zh": "代理状态: 运行中", "en": "Proxy status: running"},
     "cmd.proxy_pid": {"zh": "PID", "en": "PID"},
     "cmd.proxy_port": {"zh": "端口", "en": "Port"},
@@ -207,121 +223,9 @@ STRINGS = {
     "prompt.bark_key": {"zh": "Bark Key", "en": "Bark Key"},
     "prompt.host_label": {"zh": "主机名标签", "en": "Host Label"},
     "prompt.notify_sound": {"zh": "通知铃声", "en": "Notification Sound"},
-    "prompt.select_provider": {
-        "zh": "选择 {slot} 槽位的提供商",
-        "en": "Select provider for {slot} slot",
-    },
-    "prompt.select_model": {
-        "zh": "选择模型 ({provider})",
-        "en": "Select model ({provider})",
-    },
-    "prompt.no_models_error": {
-        "zh": "错误: 提供商 '{name}' 没有可用模型，跳过此槽位。",
-        "en": "Error: Provider '{name}' has no available models, skipping slot.",
-    },
-    "prompt.skip_slot": {"zh": "跳过此槽位", "en": "Skip this slot"},
-    "prompt.configure_slot": {
-        "zh": "配置 {slot} 槽位",
-        "en": "Configure {slot} slot",
-    },
-    "prompt.select_default_model": {
-        "zh": "选择默认模型",
-        "en": "Select default model",
-    },
-    "prompt.select_effort": {
-        "zh": "选择努力等级",
-        "en": "Select effort level",
-    },
-    "prompt.no_provider_error": {
-        "zh": "错误: 暂无可用提供商。请先使用 'ccprofile provider add' 添加提供商。",
-        "en": "Error: No providers available. Use 'ccprofile provider add' first.",
-    },
-    "prompt.mixed_min_one": {
-        "zh": "错误: 混合配置至少需要配置一个模型槽位。",
-        "en": "Error: Mixed profile requires at least one model slot configured.",
-    },
     "prompt.required_field": {
         "zh": "错误: {label} 为必填项。",
         "en": "Error: {label} is required.",
-    },
-
-    # ── provider.py ──
-    "prov.add_exists": {
-        "zh": "错误: 提供商 '{name}' 已存在。请使用 edit 命令修改。",
-        "en": "Error: Provider '{name}' already exists. Use edit to modify.",
-    },
-    "prov.add_noninteractive_all_required": {
-        "zh": "错误: 非交互添加提供商时必须同时提供 --url、--key 和 --models。",
-        "en": "Error: Non-interactive provider add requires --url, --key and --models together.",
-    },
-    "prov.add_missing_parts": {
-        "zh": "缺少",
-        "en": "Missing",
-    },
-    "prov.add_empty_error": {
-        "zh": "错误: --url、--key 和 --models 不能为空。",
-        "en": "Error: --url, --key and --models cannot be empty.",
-    },
-    "prov.add_intro": {
-        "zh": "添加提供商 '{name}'。按回车使用默认值。",
-        "en": "Adding provider '{name}'. Press Enter for defaults.",
-    },
-    "prov.add_done": {"zh": "提供商 '{name}' 已添加。", "en": "Provider '{name}' added."},
-    "prov.list_empty": {"zh": "暂无提供商。", "en": "No providers yet."},
-    "prov.list_total": {"zh": "共 {n} 个", "en": "{n} total"},
-    "prov.list_models": {"zh": "模型", "en": "Models"},
-    "prov.show_pick": {"zh": "选择要查看的提供商", "en": "Select provider to view"},
-    "prov.show_not_found": {
-        "zh": "错误: 提供商 '{name}' 不存在。",
-        "en": "Error: Provider '{name}' does not exist.",
-    },
-    "prov.edit_pick": {"zh": "选择要编辑的提供商", "en": "Select provider to edit"},
-    "prov.edit_not_found": {
-        "zh": "错误: 提供商 '{name}' 不存在。",
-        "en": "Error: Provider '{name}' does not exist.",
-    },
-    "prov.edit_intro": {
-        "zh": "编辑提供商 '{name}'。按回车保留当前值。",
-        "en": "Editing provider '{name}'. Press Enter to keep current value.",
-    },
-    "prov.edit_done": {"zh": "提供商 '{name}' 已更新。", "en": "Provider '{name}' updated."},
-    "prov.delete_pick": {"zh": "选择要删除的提供商", "en": "Select provider to delete"},
-    "prov.delete_not_found": {
-        "zh": "错误: 提供商 '{name}' 不存在。",
-        "en": "Error: Provider '{name}' does not exist.",
-    },
-    "prov.delete_in_use": {
-        "zh": "错误: 提供商 '{name}' 正被以下配置使用",
-        "en": "Error: Provider '{name}' is in use by the following profiles",
-    },
-    "prov.delete_in_use_hint": {
-        "zh": "请先删除或修改这些配置后再删除提供商。",
-        "en": "Delete or modify these profiles first before deleting the provider.",
-    },
-    "prov.delete_confirm": {
-        "zh": "确认删除提供商 '{name}'？",
-        "en": "Confirm deleting provider '{name}'?",
-    },
-    "prov.delete_done": {"zh": "提供商 '{name}' 已删除。", "en": "Provider '{name}' deleted."},
-    "prov.url_scheme_error": {
-        "zh": "错误: API 地址必须以 http:// 或 https:// 开头。",
-        "en": "Error: API address must start with http:// or https://.",
-    },
-    "prov.url_format_error": {
-        "zh": "错误: API 地址格式无效。",
-        "en": "Error: Invalid API address format.",
-    },
-    "prov.models_empty_error": {
-        "zh": "错误: --models 包含空模型名，请检查逗号分隔格式。",
-        "en": "Error: --models contains empty model name, check comma separation.",
-    },
-    "prov.models_whitespace_error": {
-        "zh": "错误: 模型名 '{model}' 不能包含空白字符。",
-        "en": "Error: Model name '{model}' cannot contain whitespace.",
-    },
-    "prov.models_duplicate_error": {
-        "zh": "错误: --models 中模型名重复",
-        "en": "Error: duplicate model name in --models",
     },
 
     # ── constants.py — FIELDS labels ──
@@ -447,6 +351,18 @@ STRINGS = {
         "zh": "同时更新 settings.json 使变更立即生效",
         "en": "Also update settings.json to apply changes immediately",
     },
+    "cli.1m_help": {
+        "zh": "切换 1M 上下文",
+        "en": "Toggle 1M Context",
+    },
+    "cli.1m_action_help": {
+        "zh": "操作 (on/off/toggle，默认 toggle)",
+        "en": "Action (on/off/toggle, default toggle)",
+    },
+    "cli.1m_apply_help": {
+        "zh": "同时更新 settings.json 使变更立即生效",
+        "en": "Also update settings.json to apply changes immediately",
+    },
     "cli.provider_help": {"zh": "提供商管理", "en": "Provider management"},
     "cli.provider_add_help": {"zh": "添加提供商", "en": "Add provider"},
     "cli.provider_name_help": {"zh": "提供商名称", "en": "Provider name"},
@@ -504,6 +420,358 @@ STRINGS = {
     },
     "term.yes": {"zh": "是", "en": "Yes"},
     "term.no": {"zh": "否", "en": "No"},
+    "term.cancelled": {"zh": "已取消", "en": "Canceled"},
+
+    # ── cmd_show display labels ──
+    "cmd.show.model": {"zh": "模型", "en": "Model"},
+    "cmd.show.effort": {"zh": "努力等级", "en": "Effort Level"},
+    "cmd.show.teams_mode": {"zh": "Teams 模式", "en": "Teams Mode"},
+    "cmd.show.teams_enabled": {"zh": "✓ 已启用", "en": "✓ Enabled"},
+    "cmd.show.teams_disabled": {"zh": "未启用", "en": "Not Enabled"},
+    "cmd.show.1m_context": {"zh": "1M 上下文", "en": "1M Context"},
+    "cmd.show.1m_enabled": {"zh": "✓ 已启用", "en": "✓ Enabled"},
+    "cmd.show.1m_disabled": {"zh": "未启用", "en": "Not Enabled"},
+    "cmd.show.connection": {"zh": "连接", "en": "Connection"},
+    "cmd.show.model_override": {"zh": "模型覆盖", "en": "Model Override"},
+    "cmd.show.flags": {"zh": "标志", "en": "Flags"},
+    "cmd.show.flags_disabled": {"zh": "禁用", "en": "Disabled"},
+    "cmd.show.flags_enabled": {"zh": "启用", "en": "Enabled"},
+    "cmd.show.push_notification": {"zh": "推送通知", "en": "Push Notification"},
+    "cmd.show.custom_hooks": {"zh": "自定义 hooks 配置", "en": "Custom Hooks Config"},
+    "cmd.show.not_configured": {"zh": "未配置", "en": "Not Configured"},
+    "cmd.show.proxy_port": {"zh": "代理端口", "en": "Proxy Port"},
+    "cmd.show.model_mapping": {"zh": "模型映射", "en": "Model Mapping"},
+    "cmd.show.bark": {"zh": "Bark", "en": "Bark"},
+
+    # ── cmd_show proxy status ──
+    "cmd.proxy_model_mapping": {"zh": "模型映射", "en": "Model Mapping"},
+
+    # ── additional display labels ──
+    "cmd.show.default_model": {"zh": "默认模型", "en": "Default Model"},
+
+    # ── commands.py ──
+    "cmd.hooks_json_error": {
+        "zh": "错误: --hooks-json 不是有效的 JSON: {error}",
+        "en": "Error: --hooks-json is not valid JSON: {error}",
+    },
+
+    # ── prompts.py ──
+    "prompt.no_provider_error": {
+        "zh": "错误: 暂无可用提供商。请先使用 'ccprofile provider add' 添加提供商。",
+        "en": "Error: No providers available. Use 'ccprofile provider add' first.",
+    },
+    "prompt.configure_slot": {
+        "zh": "配置 {slot} 槽位",
+        "en": "Configure {slot} slot",
+    },
+    "prompt.skip_slot": {
+        "zh": "跳过此槽位",
+        "en": "Skip this slot",
+    },
+    "prompt.select_provider_for_slot": {
+        "zh": "选择 {slot} 槽位的提供商",
+        "en": "Select provider for {slot} slot",
+    },
+    "prompt.provider_no_models": {
+        "zh": "错误: 提供商 '{name}' 没有可用模型，跳过此槽位。",
+        "en": "Error: Provider '{name}' has no available models, skipping slot.",
+    },
+    "prompt.select_model": {
+        "zh": "选择模型 ({provider})",
+        "en": "Select model ({provider})",
+    },
+    "prompt.mixed_min_one": {
+        "zh": "错误: 混合配置至少需要配置一个模型槽位。",
+        "en": "Error: Mixed profile requires at least one model slot configured.",
+    },
+    "prompt.select_default_model": {
+        "zh": "选择默认模型",
+        "en": "Select default model",
+    },
+    "prompt.select_effort": {
+        "zh": "选择努力等级",
+        "en": "Select effort level",
+    },
+    "prompt.hooks_config_skip": {
+        "zh": "推送通知配置 (留空跳过)",
+        "en": "Push notification config (skip if empty)",
+    },
+
+    # ── provider.py ──
+    "prov.url_scheme_error": {
+        "zh": "错误: API 地址必须以 http:// 或 https:// 开头。",
+        "en": "Error: API address must start with http:// or https://.",
+    },
+    "prov.url_format_error": {
+        "zh": "错误: API 地址格式无效。",
+        "en": "Error: Invalid API address format.",
+    },
+    "prov.models_empty_error": {
+        "zh": "错误: --models 包含空模型名，请检查逗号分隔格式。",
+        "en": "Error: --models contains empty model name, check comma separation.",
+    },
+    "prov.models_whitespace_error": {
+        "zh": "错误: 模型名 '{model}' 不能包含空白字符。",
+        "en": "Error: Model name '{model}' cannot contain whitespace.",
+    },
+    "prov.models_duplicate_error": {
+        "zh": "错误: --models 中模型名重复: {model}",
+        "en": "Error: duplicate model name in --models: {model}",
+    },
+    "prov.add_exists": {
+        "zh": "错误: 提供商 '{name}' 已存在。请使用 edit 命令修改。",
+        "en": "Error: Provider '{name}' already exists. Use edit to modify.",
+    },
+    "prov.add_noninteractive_all_required": {
+        "zh": "错误: 非交互添加提供商时必须同时提供 --url、--key 和 --models。缺少: {missing}",
+        "en": "Error: Non-interactive provider add requires --url, --key and --models. Missing: {missing}",
+    },
+    "prov.add_intro": {
+        "zh": "添加提供商 '{name}'。按回车使用默认值。",
+        "en": "Adding provider '{name}'. Press Enter for defaults.",
+    },
+    "prov.add_empty_error": {
+        "zh": "错误: --url、--key 和 --models 不能为空。",
+        "en": "Error: --url, --key and --models cannot be empty.",
+    },
+    "prov.add_done": {
+        "zh": "提供商 '{name}' 已添加。",
+        "en": "Provider '{name}' added.",
+    },
+    "prov.list_empty": {
+        "zh": "暂无提供商。",
+        "en": "No providers yet.",
+    },
+    "prov.list_total": {"zh": "共 {n} 个", "en": "{n} total"},
+    "prov.list_models": {"zh": "模型", "en": "Models"},
+    "prov.show_pick": {"zh": "选择要查看的提供商", "en": "Select provider to view"},
+    "prov.show_not_found": {
+        "zh": "错误: 提供商 '{name}' 不存在。",
+        "en": "Error: Provider '{name}' does not exist.",
+    },
+    "prov.edit_pick": {"zh": "选择要编辑的提供商", "en": "Select provider to edit"},
+    "prov.edit_not_found": {
+        "zh": "错误: 提供商 '{name}' 不存在。",
+        "en": "Error: Provider '{name}' does not exist.",
+    },
+    "prov.edit_intro": {
+        "zh": "编辑提供商 '{name}'。按回车保留当前值。",
+        "en": "Editing provider '{name}'. Press Enter to keep current value.",
+    },
+    "prov.edit_done": {
+        "zh": "提供商 '{name}' 已更新。",
+        "en": "Provider '{name}' updated.",
+    },
+    "prov.delete_pick": {"zh": "选择要删除的提供商", "en": "Select provider to delete"},
+    "prov.delete_not_found": {
+        "zh": "错误: 提供商 '{name}' 不存在。",
+        "en": "Error: Provider '{name}' does not exist.",
+    },
+    "prov.delete_in_use": {
+        "zh": "错误: 提供商 '{name}' 正被以下配置使用: {profiles}",
+        "en": "Error: Provider '{name}' is in use by the following profiles: {profiles}",
+    },
+    "prov.delete_in_use_hint": {
+        "zh": "请先删除或修改这些配置后再删除提供商。",
+        "en": "Delete or modify these profiles first before deleting the provider.",
+    },
+    "prov.delete_confirm": {
+        "zh": "确认删除提供商 '{name}'？",
+        "en": "Confirm deleting provider '{name}'?",
+    },
+    "prov.delete_done": {
+        "zh": "提供商 '{name}' 已删除。",
+        "en": "Provider '{name}' deleted.",
+    },
+    "prov.panel_title": {"zh": "提供商列表", "en": "Provider List"},
+    "prov.panel_provider": {"zh": "提供商", "en": "Provider"},
+    "prov.api_address": {"zh": "API 地址", "en": "API Address"},
+    "prov.api_key": {"zh": "API 密钥", "en": "API Key"},
+    "prov.available_models": {"zh": "可用模型", "en": "Available Models"},
+
+    # ── terminal.py ──
+    "term.select_numbered": {
+        "zh": "请选择 [1-{total}] (默认 {default})",
+        "en": "Select [1-{total}] (default {default})",
+    },
+
+    # ── picker.py ──
+    "picker.select_profile": {"zh": "选择配置", "en": "Select Profile"},
+    "picker.no_profiles_init": {"zh": "暂无配置。请先 init 并 add。", "en": "No profiles yet. Run init and add first."},
+    "picker.no_profiles_add": {"zh": "暂无配置。请先添加。", "en": "No profiles yet. Add one first."},
+    "picker.select_provider": {"zh": "选择提供商", "en": "Select Provider"},
+    "picker.no_providers": {"zh": "暂无提供商。请先添加。", "en": "No providers yet. Add one first."},
+    "picker.cancel": {"zh": "取消", "en": "Cancel"},
+
+    # ── display.py ──
+    "display.proxy_running": {"zh": "运行中", "en": "Running"},
+    "display.proxy_stopped": {"zh": "已停止", "en": "Stopped"},
+
+    # ── proxy_process.py ──
+    "proxy.already_running": {"zh": "代理已在运行中 (PID: {pid})", "en": "Proxy already running (PID: {pid})"},
+    "proxy.started": {"zh": "代理已启动 (PID: {pid}), 端口: {port}", "en": "Proxy started (PID: {pid}), port: {port}"},
+    "proxy.start_timeout": {"zh": "错误: 代理启动超时，未收到子进程就绪信号 (端口: {port})", "en": "Error: Proxy start timed out, no ready signal (port: {port})"},
+    "proxy.start_exit": {"zh": "错误: 代理子进程已退出 (退出码: {code})，端口 {port} 可能已被占用", "en": "Error: Proxy subprocess exited (code: {code}), port {port} may be in use"},
+    "proxy.start_failed": {"zh": "错误: 启动代理失败: {error}", "en": "Error: Failed to start proxy: {error}"},
+    "proxy.not_running": {"zh": "代理未运行", "en": "Proxy not running"},
+    "proxy.pid_not_running": {"zh": "代理进程 (PID: {pid}) 未运行，清理 PID 文件", "en": "Proxy (PID: {pid}) not running, cleaned PID file"},
+    "proxy.pid_stale": {"zh": "代理 PID 文件已过期或不匹配 (PID: {pid})，已清理", "en": "Proxy PID file stale or mismatched (PID: {pid}), cleaned"},
+    "proxy.stopped": {"zh": "代理已停止 (PID: {pid})", "en": "Proxy stopped (PID: {pid})"},
+    "proxy.stop_failed": {"zh": "错误: 停止代理失败: {error}", "en": "Error: Failed to stop proxy: {error}"},
+    "proxy.log_title": {"zh": "代理日志 ({path}) - 最后 {n} 行:", "en": "Proxy log ({path}) - last {n} lines:"},
+    "proxy.log_missing": {"zh": "代理日志文件不存在。", "en": "Proxy log file does not exist."},
+    "proxy.log_total": {"zh": "共 {n} 行日志。", "en": "{n} total log lines."},
+    "proxy.log_read_error": {"zh": "错误: 读取日志文件失败: {error}", "en": "Error: Failed to read log file: {error}"},
+    "proxy.lines_invalid": {"zh": "行数必须大于等于 1。", "en": "Line count must be at least 1."},
+
+# ── crypto.py ──
+    "crypto.not_initialized": {"zh": "错误: 未初始化。请先运行: {hint}", "en": "Error: Not initialized. Run first: {hint}"},
+
+    # ── sync.py ──
+
+    # menu
+    "menu.sync_settings":         {"zh": "同步管理",            "en": "Sync Settings"},
+    "menu.sync_config":           {"zh": "配置 WebDAV 同步",    "en": "Configure WebDAV Sync"},
+    "menu.sync_status":           {"zh": "查看同步状态",        "en": "Sync Status"},
+    "menu.sync_push":             {"zh": "推送数据到远端",      "en": "Push to Remote"},
+    "menu.sync_pull":             {"zh": "从远端拉取数据",      "en": "Pull from Remote"},
+    "menu.sync_strategy":         {"zh": "冲突解决策略",        "en": "Conflict Strategy"},
+    "menu.sync_reset":            {"zh": "重置同步配置",        "en": "Reset Sync Config"},
+
+    # cli
+    "cli.sync_help":              {"zh": "WebDAV 同步",                            "en": "WebDAV sync"},
+    "cli.sync_config_help":       {"zh": "配置 WebDAV 连接",                       "en": "Configure WebDAV connection"},
+    "cli.sync_push_help":         {"zh": "推送本地数据到远端",                     "en": "Push local data to remote"},
+    "cli.sync_pull_help":         {"zh": "从远端拉取数据到本地",                   "en": "Pull remote data to local"},
+    "cli.sync_status_help":       {"zh": "显示同步状态",                           "en": "Show sync status"},
+    "cli.sync_strategy_help":     {"zh": "设置冲突解决策略",                       "en": "Set conflict resolution strategy"},
+    "cli.sync_strategy_arg_help": {"zh": "策略名称 (merge/local-wins/remote-wins)", "en": "Strategy name (merge/local-wins/remote-wins)"},
+    "cli.sync_reset_help":        {"zh": "清除本地同步配置",                       "en": "Clear local sync config"},
+    "cli.sync_force_help":        {"zh": "强制执行，跳过确认提示",                 "en": "Force execution, skip confirmation"},
+
+    # sync config
+    "sync.config_title":          {"zh": "WebDAV 同步配置", "en": "WebDAV Sync Configuration"},
+    "sync.default_remote_dir":    {"zh": "ccprofile",      "en": "ccprofile"},
+    "sync.prompt_url":            {"zh": "WebDAV 服务器地址",                     "en": "WebDAV server URL"},
+    "sync.prompt_username":       {"zh": "用户名",                               "en": "Username"},
+    "sync.prompt_password":       {"zh": "密码",                                 "en": "Password"},
+    "sync.prompt_remote_dir":      {"zh": "远端目录",                             "en": "Remote directory"},
+    "sync.prompt_device_name":    {"zh": "设备名称 (用于冲突标识)",              "en": "Device name (for conflict identification)"},
+    "sync.prompt_no_ssl":         {"zh": "禁用 SSL 证书验证?",                   "en": "Disable SSL certificate verification?"},
+    "sync.testing_connection":    {"zh": "正在测试连接...",                       "en": "Testing connection..."},
+    "sync.retry_attempt":         {"zh": "重试 ({n}/3)",                          "en": "Retry ({n}/3)"},
+    "sync.error_connection_failed": {"zh": "连接失败",                            "en": "Connection failed"},
+    "sync.error_ensure_dir":     {"zh": "无法创建远端目录",                      "en": "Failed to create remote directory"},
+    "sync.test_connection_ok":    {"zh": "连接测试成功",                          "en": "Connection test successful"},
+    "sync.error_http_warning":   {"zh": "警告: 使用 HTTP 传输数据不安全，建议使用 HTTPS。", "en": "Warning: Using HTTP is insecure. HTTPS is recommended."},
+    "sync.prompt_sync_password_intro": {"zh": "设置同步密码（用于加密远端数据，请妥善保管）", "en": "Set sync password (used to encrypt remote data, keep it safe)"},
+    "sync.prompt_sync_password":  {"zh": "同步密码",                              "en": "Sync password"},
+    "sync.prompt_current_sync_password": {"zh": "当前同步密码",                   "en": "Current sync password"},
+    "sync.prompt_sync_password_confirm": {"zh": "确认同步密码",                     "en": "Confirm sync password"},
+    "sync.prompt_strategy":       {"zh": "选择冲突解决策略",                      "en": "Select conflict resolution strategy"},
+    "sync.error_password_mismatch": {"zh": "两次密码不一致，请重新输入。",         "en": "Passwords do not match. Please try again."},
+    "sync.config_saved":          {"zh": "同步配置已保存。使用 'ccprofile sync push' 开始同步。", "en": "Sync config saved. Use 'ccprofile sync push' to start syncing."},
+    "sync.reusing_remote_salt":   {"zh": "检测到远端已有同步数据，复用已有密钥盐值。", "en": "Existing remote sync data detected, reusing remote key salt."},
+    "sync.rotate_remote_salt":    {"zh": "检测到远端已有同步数据，将校验当前同步密码并轮换新的盐值。", "en": "Existing remote sync data detected; validating current sync password and rotating to a new salt."},
+
+    # sync errors
+    "sync.error_not_initialized": {"zh": "错误: 系统尚未初始化。请先运行 'ccprofile init'。", "en": "Error: Not initialized. Run 'ccprofile init' first."},
+    "sync.error_no_config":      {"zh": "错误: 未配置同步。请先运行 'ccprofile sync config'。", "en": "Error: Sync not configured. Run 'ccprofile sync config' first."},
+    "sync.error_config_invalid": {"zh": "错误: 同步配置文件已损坏，无法读取。请重新运行 'ccprofile sync config'。", "en": "Error: Sync configuration is corrupt and cannot be read. Run 'ccprofile sync config' again."},
+    "sync.error_config_password_unreadable": {"zh": "错误: 同步配置中的 WebDAV 密码无法用当前本地密钥解密。请重新运行 'ccprofile sync config' 或 'ccprofile sync reset'。", "en": "Error: The WebDAV password in sync config cannot be decrypted with the current local key. Run 'ccprofile sync config' or 'ccprofile sync reset'."},
+    "sync.error_connection":     {"zh": "错误: 无法连接到 WebDAV 服务器。",          "en": "Error: Cannot connect to WebDAV server."},
+    "sync.error_timeout":        {"zh": "错误: 连接超时。",                         "en": "Error: Connection timed out."},
+    "sync.error_ssl":            {"zh": "错误: SSL 证书验证失败。如果使用自签证书，请在 sync config 中禁用验证。", "en": "Error: SSL certificate verification failed. Disable verification in sync config if using a self-signed certificate."},
+    "sync.error_auth":           {"zh": "错误: 认证失败，请检查用户名和密码。",    "en": "Error: Authentication failed. Check your username and password."},
+    "sync.error_sync_key_invalid": {"zh": "错误: 同步密码不正确，无法解密远端数据。", "en": "Error: Sync password incorrect, cannot decrypt remote data."},
+    "sync.error_local_key_unavailable": {"zh": "错误: 本地加密密钥不可用，无法读取同步快照。", "en": "Error: Local encryption key unavailable; cannot read sync snapshot."},
+    "sync.error_no_remote_data": {"zh": "错误: 远端没有同步数据。",                "en": "Error: No remote sync data found."},
+    "sync.error_upload":         {"zh": "错误: 上传失败",                          "en": "Error: Upload failed"},
+    "sync.error_upload_salt":    {"zh": "错误: 上传同步盐值失败",                  "en": "Error: Failed to upload sync salt"},
+    "sync.error_download":       {"zh": "错误: 下载失败",                          "en": "Error: Download failed"},
+    "sync.warning_snapshot_invalid": {"zh": "警告: 本地同步快照无法解密或解析，已按空快照处理。", "en": "Warning: Local sync snapshot could not be decrypted or parsed; treating it as empty."},
+
+    # sync operations
+    "sync.push_done":             {"zh": "推送完成。",                             "en": "Push complete."},
+    "sync.pull_done":             {"zh": "拉取完成。",                             "en": "Pull complete."},
+    "sync.already_up_to_date":    {"zh": "已是最新，无需同步。",                  "en": "Already up to date."},
+    "sync.auto_push_intro":       {"zh": "检测到本地有更新，正在推送到远端...",    "en": "Local changes detected, pushing to remote..."},
+    "sync.auto_pull_intro":       {"zh": "检测到远端有更新，正在拉取...",          "en": "Remote changes detected, pulling..."},
+    "sync.push_confirm":          {"zh": "远端已被其他设备更新，是否覆盖？",        "en": "Remote was updated by another device. Overwrite?"},
+    "sync.push_remote_changed_warning": {"zh": "远端已被其他设备更新。",            "en": "Remote was updated by another device."},
+    "sync.pull_confirm":          {"zh": "本地有未保存的更改，是否继续拉取（将覆盖本地）？", "en": "Local has unsaved changes. Continue pull (will overwrite local)?"},
+    "sync.pull_local_data_loss_warning": {"zh": "本地有未保存的更改。",              "en": "Local has unsaved changes."},
+
+    # sync conflict
+    "sync.conflict_detected":    {"zh": "检测到冲突！",                           "en": "Conflict detected!"},
+    "sync.conflict_strategy":    {"zh": "冲突解决策略: {strategy}",               "en": "Conflict resolution strategy: {strategy}"},
+    "sync.conflict_local_wins":  {"zh": "使用本地数据覆盖远端。",                 "en": "Overwriting remote with local data."},
+    "sync.conflict_remote_wins": {"zh": "使用远端数据覆盖本地。",                 "en": "Overwriting local with remote data."},
+    "sync.conflict_merge":       {"zh": "执行三方合并...",                         "en": "Performing three-way merge..."},
+    "sync.conflict_key":         {"zh": "冲突: {conflict_key}",                   "en": "Conflict: {conflict_key}"},
+    "sync.conflict_key_remote_kept": {"zh": "冲突: {conflict_key}，保留远端原键，本地副本保存为 {duplicate_key}", "en": "Conflict: {conflict_key}; kept remote key and saved the local copy as {duplicate_key}"},
+    "sync.merge_done":           {"zh": "合并完成。",                             "en": "Merge complete."},
+
+    # sync strategy
+    "sync.strategy_merge":       {"zh": "合并 (推荐)",                            "en": "Merge (recommended)"},
+    "sync.strategy_local":       {"zh": "本地优先",                               "en": "Local wins"},
+    "sync.strategy_remote":      {"zh": "远端优先",                               "en": "Remote wins"},
+    "sync.strategy_done":        {"zh": "冲突策略已更新。",                        "en": "Strategy updated."},
+
+    # sync status
+    "sync.status_title":         {"zh": "同步状态",                               "en": "Sync Status"},
+    "sync.status_url":           {"zh": "服务器",                                 "en": "Server"},
+    "sync.status_username":      {"zh": "用户名",                                 "en": "Username"},
+    "sync.status_remote_dir":    {"zh": "远端目录",                               "en": "Remote Dir"},
+    "sync.status_device":        {"zh": "设备名称",                               "en": "Device"},
+    "sync.status_strategy":      {"zh": "冲突策略",                               "en": "Strategy"},
+    "sync.status_last_sync":     {"zh": "上次同步",                               "en": "Last Sync"},
+    "sync.status_snapshot_profiles":  {"zh": "快照配置数",                        "en": "Snapshot Profiles"},
+    "sync.status_snapshot_providers": {"zh": "快照提供商数",                      "en": "Snapshot Providers"},
+    "sync.status_local_dirty":   {"zh": "本地已变更",                             "en": "Local dirty"},
+    "sync.status_dirty":          {"zh": "是",                                     "en": "Yes"},
+    "sync.status_clean":         {"zh": "否",                                     "en": "No"},
+    "sync.status_remote_ok":     {"zh": "远端连接: 正常",                         "en": "Remote: OK"},
+    "sync.status_remote_error":  {"zh": "远端连接: 失败",                         "en": "Remote: Error"},
+
+    # sync reset
+    "sync.reset_confirm":        {"zh": "确认重置同步配置？这将删除所有本地同步数据。", "en": "Confirm reset sync config? This will delete all local sync data."},
+    "sync.reset_done":           {"zh": "同步配置已重置。",                         "en": "Sync config reset."},
+
+    # crypto
+    "crypto.decrypt_failed": {"zh": "错误: 解密失败，密钥可能不匹配或数据已损坏。请尝试重新初始化。", "en": "Error: Decryption failed. Key mismatch or corrupted data. Try re-initializing."},
+}
+
+# ── Field key → i18n key mappings (used by prompts.py and commands.py) ──
+
+FIELD_I18N_KEYS = {
+    "ANTHROPIC_AUTH_TOKEN": "fields.auth_token",
+    "ANTHROPIC_BASE_URL": "fields.base_url",
+    "model": "fields.model",
+    "effortLevel": "fields.effort_level",
+    "ANTHROPIC_MODEL": "fields.default_model",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "fields.haiku_override",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "fields.sonnet_override",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "fields.opus_override",
+}
+
+DISABLE_FLAG_I18N_KEYS = {
+    "DISABLE_TELEMETRY": "disable.telemetry",
+    "DISABLE_AUTOUPDATER": "disable.autoupdater",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "disable.experimental",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "disable.nonessential",
+}
+
+HOOKS_FIELD_I18N_KEYS = {
+    "bark_key": "hooks.bark_key",
+    "host_label": "hooks.host_label",
+    "sound": "hooks.sound",
+}
+
+PROVIDER_FIELD_I18N_KEYS = {
+    "base_url": "provider.base_url",
+    "api_key": "provider.api_key",
+    "models": "provider.models",
 }
 
 
