@@ -633,21 +633,17 @@ STRINGS = {
     "menu.sync_settings":         {"zh": "同步管理",            "en": "Sync Settings"},
     "menu.sync_config":           {"zh": "配置 WebDAV 同步",    "en": "Configure WebDAV Sync"},
     "menu.sync_status":           {"zh": "查看同步状态",        "en": "Sync Status"},
-    "menu.sync_push":             {"zh": "推送数据到远端",      "en": "Push to Remote"},
-    "menu.sync_pull":             {"zh": "从远端拉取数据",      "en": "Pull from Remote"},
+
     "menu.sync_strategy":         {"zh": "冲突解决策略",        "en": "Conflict Strategy"},
     "menu.sync_reset":            {"zh": "重置同步配置",        "en": "Reset Sync Config"},
 
     # cli
     "cli.sync_help":              {"zh": "WebDAV 同步",                            "en": "WebDAV sync"},
     "cli.sync_config_help":       {"zh": "配置 WebDAV 连接",                       "en": "Configure WebDAV connection"},
-    "cli.sync_push_help":         {"zh": "推送本地数据到远端",                     "en": "Push local data to remote"},
-    "cli.sync_pull_help":         {"zh": "从远端拉取数据到本地",                   "en": "Pull remote data to local"},
     "cli.sync_status_help":       {"zh": "显示同步状态",                           "en": "Show sync status"},
     "cli.sync_strategy_help":     {"zh": "设置冲突解决策略",                       "en": "Set conflict resolution strategy"},
     "cli.sync_strategy_arg_help": {"zh": "策略名称 (merge/local-wins/remote-wins)", "en": "Strategy name (merge/local-wins/remote-wins)"},
     "cli.sync_reset_help":        {"zh": "清除本地同步配置",                       "en": "Clear local sync config"},
-    "cli.sync_force_help":        {"zh": "强制执行，跳过确认提示",                 "en": "Force execution, skip confirmation"},
 
     # sync config
     "sync.config_title":          {"zh": "WebDAV 同步配置", "en": "WebDAV Sync Configuration"},
@@ -671,6 +667,7 @@ STRINGS = {
     "sync.prompt_strategy":       {"zh": "选择冲突解决策略",                      "en": "Select conflict resolution strategy"},
     "sync.error_password_mismatch": {"zh": "两次密码不一致，请重新输入。",         "en": "Passwords do not match. Please try again."},
     "sync.config_saved":          {"zh": "同步配置已保存。使用 'ccprofile sync push' 开始同步。", "en": "Sync config saved. Use 'ccprofile sync push' to start syncing."},
+    "sync.config_saved_no_salt":  {"zh": "配置已保存，但盐值上传失败。同步功能可能无法正常工作，请稍后重试配置。", "en": "Config saved, but salt upload failed. Sync may not work correctly; try re-configuring later."},
     "sync.reusing_remote_salt":   {"zh": "检测到远端已有同步数据，复用已有密钥盐值。", "en": "Existing remote sync data detected, reusing remote key salt."},
     "sync.rotate_remote_salt":    {"zh": "检测到远端已有同步数据，将校验当前同步密码并轮换新的盐值。", "en": "Existing remote sync data detected; validating current sync password and rotating to a new salt."},
 
@@ -697,10 +694,7 @@ STRINGS = {
     "sync.already_up_to_date":    {"zh": "已是最新，无需同步。",                  "en": "Already up to date."},
     "sync.auto_push_intro":       {"zh": "检测到本地有更新，正在推送到远端...",    "en": "Local changes detected, pushing to remote..."},
     "sync.auto_pull_intro":       {"zh": "检测到远端有更新，正在拉取...",          "en": "Remote changes detected, pulling..."},
-    "sync.push_confirm":          {"zh": "远端已被其他设备更新，是否覆盖？",        "en": "Remote was updated by another device. Overwrite?"},
-    "sync.push_remote_changed_warning": {"zh": "远端已被其他设备更新。",            "en": "Remote was updated by another device."},
-    "sync.pull_confirm":          {"zh": "本地有未保存的更改，是否继续拉取（将覆盖本地）？", "en": "Local has unsaved changes. Continue pull (will overwrite local)?"},
-    "sync.pull_local_data_loss_warning": {"zh": "本地有未保存的更改。",              "en": "Local has unsaved changes."},
+
 
     # sync conflict
     "sync.conflict_detected":    {"zh": "检测到冲突！",                           "en": "Conflict detected!"},

@@ -17,8 +17,6 @@ from .provider import cmd_provider_add, cmd_provider_delete, cmd_provider_edit, 
 from .sync import (
     cmd_sync_auto,
     cmd_sync_config,
-    cmd_sync_pull,
-    cmd_sync_push,
     cmd_sync_reset,
     cmd_sync_status,
     cmd_sync_strategy,
@@ -73,8 +71,6 @@ SYNC_MENU = [
     ("sync_auto", "立即同步"),
     ("sync_config", "配置 WebDAV 同步"),
     ("sync_status", "查看同步状态"),
-    ("sync_push", "推送数据到远端"),
-    ("sync_pull", "从远端拉取数据"),
     ("sync_strategy", "冲突解决策略"),
     ("sync_reset", "重置同步配置"),
 ]
@@ -105,8 +101,6 @@ def interactive_menu():
         "sync_auto": cmd_sync_auto,
         "sync_config": cmd_sync_config,
         "sync_status": cmd_sync_status,
-        "sync_push": cmd_sync_push,
-        "sync_pull": cmd_sync_pull,
         "sync_strategy": cmd_sync_strategy,
         "sync_reset": cmd_sync_reset,
         "provider_add": cmd_provider_add,
@@ -180,8 +174,6 @@ def interactive_menu():
         elif cmd_name == "context_1m":
             args.action = "toggle"
             args.apply = True
-        elif cmd_name in ("sync_push", "sync_pull"):
-            args.force = False
         elif cmd_name == "sync_strategy":
             args.strategy_arg = None
 

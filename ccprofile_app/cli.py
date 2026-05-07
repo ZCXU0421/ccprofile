@@ -42,8 +42,6 @@ from .provider import (  # noqa: E402
 from .sync import (  # noqa: E402
     cmd_sync_auto,
     cmd_sync_config,
-    cmd_sync_pull,
-    cmd_sync_push,
     cmd_sync_reset,
     cmd_sync_status,
     cmd_sync_strategy,
@@ -166,12 +164,6 @@ def build_parser():
 
     sync_sub.add_parser("config", help=t("cli.sync_config_help"))
 
-    p_sync_push = sync_sub.add_parser("push", help=t("cli.sync_push_help"))
-    p_sync_push.add_argument("--force", action="store_true", help=t("cli.sync_force_help"))
-
-    p_sync_pull = sync_sub.add_parser("pull", help=t("cli.sync_pull_help"))
-    p_sync_pull.add_argument("--force", action="store_true", help=t("cli.sync_force_help"))
-
     sync_sub.add_parser("status", help=t("cli.sync_status_help"))
 
     p_sync_strategy = sync_sub.add_parser("strategy", help=t("cli.sync_strategy_help"))
@@ -236,8 +228,6 @@ def main():
 
     sync_commands = {
         "config": cmd_sync_config,
-        "push": cmd_sync_push,
-        "pull": cmd_sync_pull,
         "status": cmd_sync_status,
         "strategy": cmd_sync_strategy,
         "reset": cmd_sync_reset,

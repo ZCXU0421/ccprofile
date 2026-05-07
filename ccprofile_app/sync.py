@@ -336,13 +336,15 @@ def _detect_sync_action(snapshot_profiles, snapshot_providers, current_profiles,
         or local_providers_md5 != snapshot_providers_md5
     )
 
-    if remote_meta:
-        remote_changed = (
-            _get_meta_digest(remote_meta, "profiles") != stored_remote_profiles_md5
-            or _get_meta_digest(remote_meta, "providers") != stored_remote_providers_md5
-        )
-    else:
-        remote_changed = False
+    # 远端无 sync_meta 意味着远端从未被同步过
+    if remote_meta is None:
+        has_local = bool(current_profiles or current_providers)
+        return "push" if has_local else "up-to-date"
+
+    remote_changed = (
+        _get_meta_digest(remote_meta, "profiles") != stored_remote_profiles_md5
+        or _get_meta_digest(remote_meta, "providers") != stored_remote_providers_md5
+    )
 
     if not local_changed and not remote_changed:
         return "up-to-date"
@@ -452,6 +454,10 @@ def _prompt_sync_connection_inputs() -> Optional[dict]:
     remote_dir = input(f"  {t('sync.prompt_remote_dir')} [{t('sync.default_remote_dir')}]: ").strip()
     if not remote_dir:
         remote_dir = "ccprofile"
+    # 规范化：去除前导 ./ 和首尾 /
+    while remote_dir.startswith("./"):
+        remote_dir = remote_dir[2:]
+    remote_dir = remote_dir.strip("/")
 
     default_device_name = socket.gethostname()
     device_name = input(
@@ -646,6 +652,9 @@ def cmd_sync_config(args):
     if salt is None:
         return
 
+    config = _build_sync_config(connection_info, verify_ssl, strategy, salt)
+    _save_sync_setup(config)
+
     if not salt_uploaded and (remote_salt is None or remote_salt != salt):
         try:
             _upload_payload_with_backup(
@@ -654,159 +663,11 @@ def cmd_sync_config(args):
                 salt,
             )
         except WebDAVError as exc:
-            print(f"  {RED}{t('sync.error_upload_salt')}{RESET}: {exc}")
-            sys.exit(1)
-
-    config = _build_sync_config(connection_info, verify_ssl, strategy, salt)
-    _save_sync_setup(config)
+            print(f"  {YELLOW}{t('sync.error_upload_salt')}{RESET}: {exc}")
+            print(f"  {DIM}{t('sync.config_saved_no_salt')}{RESET}")
 
     print()
     print(f"  {GREEN}{t('sync.config_saved')}{RESET}")
-
-
-def cmd_sync_push(args):
-    """推送本地数据到远端。"""
-    config = _load_sync_config_or_exit()
-
-    force = getattr(args, "force", False)
-
-    # 同步密码
-    sync_password = getpass.getpass(f"  {t('sync.prompt_sync_password')}: ").strip()
-    if not sync_password:
-        print(f"  {t('cmd.canceled')}")
-        return
-
-    salt = base64.b64decode(config["salt"])
-    sync_key = _derive_sync_key(sync_password, salt)
-
-    # 连接 WebDAV
-    try:
-        client = WebDAVClient(
-            config["webdav_url"],
-            config["username"],
-            config["password"],
-            verify_ssl=config.get("verify_ssl", True),
-        )
-    except WebDAVError as e:
-        print(f"  {RED}{t('sync.error_connection')}{RESET}: {e}")
-        sys.exit(1)
-
-    # 加载本地数据
-    current_profiles = load_profiles()
-    current_providers = load_providers()
-
-    # 非 force 时检查远端是否已被更新
-    if not force:
-        remote_meta = _download_sync_meta(client, config["remote_dir"])
-        if remote_meta and remote_meta.get("device") != config["device_name"]:
-            stored_profiles_md5 = _get_stored_remote_digest(config, "profiles")
-            stored_providers_md5 = _get_stored_remote_digest(config, "providers")
-            remote_changed = (
-                _get_meta_digest(remote_meta, "profiles") != stored_profiles_md5
-                or _get_meta_digest(remote_meta, "providers") != stored_providers_md5
-            )
-            if remote_changed:
-                print(f"  {YELLOW}{t('sync.push_remote_changed_warning')}{RESET}")
-                if not confirm_action(t("sync.push_confirm"), default_yes=False):
-                    print(f"  {t('cmd.canceled')}")
-                    return
-
-    try:
-        profiles_md5, providers_md5 = _do_push(
-            client, config, sync_key, current_profiles, current_providers
-        )
-    except WebDAVError as e:
-        print(f"  {RED}{t('sync.error_upload')}{RESET}: {e}")
-        sys.exit(1)
-
-    if profiles_md5 is None or providers_md5 is None:
-        sys.exit(1)
-
-    _update_sync_state(config, profiles_md5, providers_md5)
-
-    print(f"  {GREEN}{t('sync.push_done')}{RESET}")
-
-
-def cmd_sync_pull(args):
-    """从远端拉取数据到本地。"""
-    config = _load_sync_config_or_exit()
-
-    force = getattr(args, "force", False)
-
-    sync_password = getpass.getpass(f"  {t('sync.prompt_sync_password')}: ").strip()
-    if not sync_password:
-        print(f"  {t('cmd.canceled')}")
-        return
-
-    salt = base64.b64decode(config["salt"])
-    sync_key = _derive_sync_key(sync_password, salt)
-
-    try:
-        client = WebDAVClient(
-            config["webdav_url"],
-            config["username"],
-            config["password"],
-            verify_ssl=config.get("verify_ssl", True),
-        )
-    except WebDAVError as e:
-        print(f"  {RED}{t('sync.error_connection')}{RESET}: {e}")
-        sys.exit(1)
-
-    current_profiles = load_profiles()
-    current_providers = load_providers()
-
-    if not force:
-        snapshot_profiles, snapshot_providers = _load_snapshot()
-        local_profiles_md5 = _compute_digest(json.dumps(current_profiles, sort_keys=True).encode())
-        local_providers_md5 = _compute_digest(json.dumps(current_providers, sort_keys=True).encode())
-        snapshot_profiles_md5 = _compute_digest(json.dumps(snapshot_profiles, sort_keys=True).encode())
-        snapshot_providers_md5 = _compute_digest(json.dumps(snapshot_providers, sort_keys=True).encode())
-
-        if local_profiles_md5 != snapshot_profiles_md5 or local_providers_md5 != snapshot_providers_md5:
-            print(f"  {YELLOW}{t('sync.pull_local_data_loss_warning')}{RESET}")
-            if not confirm_action(t("sync.pull_confirm"), default_yes=False):
-                print(f"  {t('cmd.canceled')}")
-                return
-
-    try:
-        remote_profiles_enc, remote_providers_enc = _download_remote_payloads(
-            client,
-            config["remote_dir"],
-        )
-    except WebDAVError as e:
-        print(f"  {RED}{t('sync.error_download')}{RESET}: {e}")
-        sys.exit(1)
-
-    if not remote_profiles_enc and not remote_providers_enc:
-        print(f"  {RED}{t('sync.error_no_remote_data')}{RESET}")
-        sys.exit(1)
-
-    try:
-        decrypted_profiles = Fernet(sync_key).decrypt(remote_profiles_enc).decode() if remote_profiles_enc else "{}"
-        decrypted_providers = Fernet(sync_key).decrypt(remote_providers_enc).decode() if remote_providers_enc else "{}"
-    except InvalidToken:
-        print(f"  {RED}{t('sync.error_sync_key_invalid')}{RESET}")
-        sys.exit(1)
-
-    try:
-        pulled_profiles = json.loads(decrypted_profiles)
-        pulled_providers = json.loads(decrypted_providers)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        print(f"  {RED}{t('sync.error_download')}{RESET}: {exc}")
-        sys.exit(1)
-
-    save_profiles(pulled_profiles)
-    save_providers(pulled_providers)
-
-    remote_meta = _download_sync_meta(client, config["remote_dir"])
-    _update_sync_state(
-        config,
-        _get_meta_digest(remote_meta, "profiles") if remote_meta else _compute_digest(remote_profiles_enc),
-        _get_meta_digest(remote_meta, "providers") if remote_meta else _compute_digest(remote_providers_enc),
-    )
-    _save_snapshot(pulled_profiles, pulled_providers)
-
-    print(f"  {GREEN}{t('sync.pull_done')}{RESET}")
 
 
 def cmd_sync_auto(args):
@@ -955,7 +816,7 @@ def _upload_payload_with_backup(client, remote_path: str, data: bytes,
     """覆盖远端文件前保留一份 .bak。"""
     try:
         existing = client.download(remote_path)
-    except WebDAVNotFoundError:
+    except WebDAVError:
         existing = None
 
     if existing is not None:

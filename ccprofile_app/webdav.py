@@ -139,6 +139,23 @@ class WebDAVClient:
             resp.close()
         except WebDAVError as e:
             if e.status_code in (301, 405):
-                pass
+                self._verify_dir_exists(remote_path)
             else:
                 raise
+
+    def _verify_dir_exists(self, remote_path):
+        """用 PROPFIND 验证目录存在，若不存在则抛出明确错误。"""
+        headers = {"Depth": "0"}
+        try:
+            resp = self._make_request("PROPFIND", remote_path, data=b"", headers=headers)
+            if resp.status not in (200, 207):
+                raise WebDAVError(
+                    f"Directory '{remote_path}' does not exist and cannot be created "
+                    f"(server returned {resp.status} on PROPFIND)"
+                )
+            resp.close()
+        except WebDAVNotFoundError:
+            raise WebDAVError(
+                f"Directory '{remote_path}' does not exist and cannot be created. "
+                f"Please create it manually on the WebDAV server."
+            )
