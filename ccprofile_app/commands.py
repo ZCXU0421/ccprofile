@@ -6,6 +6,7 @@ import sys
 
 from cryptography.fernet import Fernet
 
+from .i18n import t, FIELD_I18N_KEYS, DISABLE_FLAG_I18N_KEYS
 from .constants import (
     CCPROFILE_MANAGED_ENV_KEYS,
     DEFAULT_PROXY_PORT,
@@ -72,13 +73,13 @@ def cmd_init(_args):
     from .constants import KEY_FILE, PROVIDERS_ENC, SYNC_CONFIG_FILE, SYNC_SNAPSHOT_DIR
 
     if KEY_FILE.exists():
-        if not confirm_action("密钥文件已存在。重新生成将导致现有配置不可读！继续？", default_yes=False):
-            print("已取消。")
+        if not confirm_action(t("cmd.init_exists_warn"), default_yes=False):
+            print(t("cmd.canceled"))
             return
 
     if PROVIDERS_ENC.exists():
-        if not confirm_action("重新初始化将删除现有提供商配置 providers.enc。确认？", default_yes=False):
-            print("已取消。")
+        if not confirm_action(t("cmd.init_provider_warn"), default_yes=False):
+            print(t("cmd.canceled"))
             return
 
     key = Fernet.generate_key()
@@ -94,7 +95,7 @@ def cmd_init(_args):
     if SYNC_SNAPSHOT_DIR.exists():
         shutil.rmtree(SYNC_SNAPSHOT_DIR)
 
-    print(f"初始化完成。密钥已生成: {KEY_FILE}")
+    print(f"{t('cmd.init_done')}: {KEY_FILE}")
 
 
 def cmd_add(args):
@@ -103,7 +104,7 @@ def cmd_add(args):
     name = args.name
 
     if name in profiles:
-        print(f"错误: 配置 '{name}' 已存在。请使用 edit 命令修改。")
+        print(t("cmd.add_exists", name=name))
         sys.exit(1)
 
     # 检查模式
@@ -111,7 +112,7 @@ def cmd_add(args):
 
     if mode == "mixed":
         # 混合模式 - 仅支持交互模式
-        print(f"添加混合配置 '{name}'。按回车使用默认值。")
+        print(t("cmd.add_mixed_intro", name=name))
         profile = prompt_mixed_profile_fields()
         profile["mode"] = "mixed"
     else:
@@ -119,7 +120,7 @@ def cmd_add(args):
         if args.token or args.url or args.model:
             # 非交互模式
             if not args.token or not args.url or not args.model:
-                print("错误: 非交互模式需要 -t, -u, -m 参数。")
+                print(t("cmd.add_noninteractive_error"))
                 sys.exit(1)
             profile = {"env": {}}
             profile["env"]["ANTHROPIC_AUTH_TOKEN"] = args.token
@@ -142,7 +143,7 @@ def cmd_add(args):
                 try:
                     profile["hooks"] = json.loads(args.hooks_json)
                 except json.JSONDecodeError as e:
-                    print(f"错误: --hooks-json 不是有效的 JSON: {e}")
+                    print(t("cmd.hooks_json_error", error=e))
                     sys.exit(1)
             elif args.bark_key:
                 profile["hooks"] = {
@@ -152,7 +153,7 @@ def cmd_add(args):
                 }
         else:
             # 交互模式
-            print(f"添加配置 '{name}'。按回车使用默认值。")
+            print(t("cmd.add_single_intro", name=name))
             profile = prompt_profile_fields()
         profile["mode"] = "single"
 
@@ -161,11 +162,15 @@ def cmd_add(args):
     profile.setdefault("enable1MContext", False)
     if args.enable_teams:
         profile["enableTeams"] = True
+    else:
+        profile["enableTeams"] = True  # 默认开启
+
+    profile.setdefault("enable1MContext", False)  # 默认关闭
 
     profiles[name] = profile
     save_profiles(profiles)
     _mark_sync_dirty()
-    print(f"配置 '{name}' 已添加。")
+    print(t("cmd.add_done", name=name))
 
 
 def cmd_switch(args):
@@ -173,12 +178,12 @@ def cmd_switch(args):
     profiles = load_profiles()
     name = args.name
     if name is None:
-        name = pick_profile("选择要切换的配置")
+        name = pick_profile(t("cmd.switch_pick"))
         if name is None:
             return
 
     if name not in profiles:
-        print(f"错误: 配置 '{name}' 不存在。")
+        print(t("cmd.switch_not_found", name=name))
         sys.exit(1)
 
     profile = profiles[name]
@@ -203,7 +208,7 @@ def cmd_switch(args):
         # 混合模式：启动代理
         providers = load_providers()
         if not providers:
-            print("错误: 暂无可用提供商。请先使用 'ccprofile provider add' 添加提供商。")
+            print(t("cmd.switch_no_provider"))
             sys.exit(1)
 
         # 构建 model_mapping，合并 provider 信息
@@ -218,7 +223,7 @@ def cmd_switch(args):
         for slot, target in model_mapping.items():
             provider_name = target.get("provider")
             if provider_name not in providers:
-                print(f"错误: 提供商 '{provider_name}' 不存在。")
+                print(t("cmd.switch_provider_not_found", name=provider_name))
                 sys.exit(1)
 
             provider = providers[provider_name]
@@ -231,11 +236,11 @@ def cmd_switch(args):
 
         # 停止旧代理（如果运行中），失败时仅警告
         if not stop_proxy(quiet=True):
-            print("警告: 停止旧代理失败，将继续尝试启动新代理。")
+            print(t("cmd.switch_stop_proxy_warn"))
 
         # 启动新代理
         if not start_proxy(proxy_config):
-            print("错误: 启动代理失败。")
+            print(t("cmd.switch_start_proxy_error"))
             sys.exit(1)
 
         # 设置 settings.json
@@ -251,7 +256,7 @@ def cmd_switch(args):
     else:
         # 单一模式：停止代理，直接设置
         if not stop_proxy(quiet=True):
-            print("警告: 停止代理失败，但将继续切换配置。")
+            print(t("cmd.switch_stop_proxy_warn2"))
 
         for key, value in profile.get("env", {}).items():
             settings["env"][key] = value
@@ -286,8 +291,8 @@ def cmd_switch(args):
     meta["active"] = name
     save_meta(meta)
 
-    mode_text = "混合模式" if mode == "mixed" else "单一模式"
-    print(f"已切换到配置 '{name}' ({mode_text})。")
+    mode_text = t("cmd.mode_mixed") if mode == "mixed" else t("cmd.mode_single")
+    print(t("cmd.switch_done", name=name, mode=mode_text))
 
 
 def cmd_list(_args):
@@ -297,7 +302,7 @@ def cmd_list(_args):
     active = meta.get("active")
 
     if not profiles:
-        print("暂无配置。")
+        print(t("cmd.list_empty"))
         return
 
     body = []
@@ -312,9 +317,9 @@ def cmd_list(_args):
         mode = prof_copy.get("mode", "single")
 
         if mode == "mixed":
-            mode_tag = "混合"
+            mode_tag = t("cmd.mode_mixed")
         else:
-            mode_tag = f"单一 · {prof_copy.get('model', '?')}"
+            mode_tag = f"{t('cmd.mode_single')} · {prof_copy.get('model', '?')}"
 
         line1 = f"{prefix}{name}{' *' if is_active else ''}    {mode_tag}"
         if prof_copy.get("enableTeams"):
@@ -334,7 +339,7 @@ def cmd_list(_args):
         if idx < len(profile_items) - 1:
             body.append("")
 
-    print(panel("配置列表", f"共 {len(profiles)} 个", body))
+    print(panel(t("panel.profile_list"), t("cmd.list_total", n=len(profiles)), body))
 
 
 def cmd_show(args):
@@ -342,12 +347,12 @@ def cmd_show(args):
     profiles = load_profiles()
     name = args.name
     if name is None:
-        name = pick_profile("选择要查看的配置")
+        name = pick_profile(t("cmd.show_pick"))
         if name is None:
             return
 
     if name not in profiles:
-        print(f"错误: 配置 '{name}' 不存在。")
+        print(t("cmd.show_not_found", name=name))
         sys.exit(1)
 
     prof = profiles[name]
@@ -356,20 +361,16 @@ def cmd_show(args):
     _normalize_teams_flag(prof_copy)
     _normalize_1m_context_flag(prof_copy)
     mode = prof_copy.get("mode", "single")
-    mode_label = "混合模式" if mode == "mixed" else "单一模式"
+    mode_label = t("cmd.mode_mixed") if mode == "mixed" else t("cmd.mode_single")
 
     body = []
     body.append("")
-    body.append(kv("模型", prof_copy.get("model", "N/A")))
-    body.append(kv("努力等级", prof_copy.get("effortLevel", "high")))
-    teams_status = f"{GREEN}✓ 已启用{RESET}" if prof_copy.get("enableTeams") else f"{DIM}未启用{RESET}"
-    context_1m_status = (
-        f"{GREEN}✓ 已启用{RESET}"
-        if prof_copy.get("enable1MContext")
-        else f"{DIM}未启用{RESET}"
-    )
-    body.append(kv("Teams 模式", teams_status))
-    body.append(kv("1M 上下文", context_1m_status))
+    body.append(kv(t("cmd.show.model"), prof_copy.get("model", "N/A")))
+    body.append(kv(t("cmd.show.effort"), prof_copy.get("effortLevel", "high")))
+    teams_status = f"{GREEN}{t('cmd.show.teams_enabled')}{RESET}" if prof_copy.get("enableTeams") else f"{DIM}{t('cmd.show.teams_disabled')}{RESET}"
+    body.append(kv(t("cmd.show.teams_mode"), teams_status))
+    ctx_1m_status = f"{GREEN}{t('cmd.show.1m_enabled')}{RESET}" if prof_copy.get("enable1MContext") else f"{DIM}{t('cmd.show.1m_disabled')}{RESET}"
+    body.append(kv(t("cmd.show.1m_context"), ctx_1m_status))
     body.append("")
 
     if mode == "mixed":
@@ -377,53 +378,54 @@ def cmd_show(args):
         mapping_lines = []
         for slot, target in prof_copy.get("model_mapping", {}).items():
             mapping_lines.append(f"{slot}    →  {target.get('provider', '?')} / {target.get('model', '?')}")
-        body.append(("sub", "模型映射", mapping_lines))
+        body.append(("sub", t("cmd.show.model_mapping"), mapping_lines))
         body.append("")
-        body.append(kv("代理端口", str(prof_copy.get("proxy_port", 18888))))
+        body.append(kv(t("cmd.show.proxy_port"), str(prof_copy.get("proxy_port", 18888))))
     else:
         # 连接子面板
         env = prof_copy.get("env", {})
         conn_lines = [
-            kv("API 密钥", mask_token(env.get("ANTHROPIC_AUTH_TOKEN", ""))),
-            kv("API 地址", env.get("ANTHROPIC_BASE_URL", "N/A")),
+            kv(t("fields.auth_token"), mask_token(env.get("ANTHROPIC_AUTH_TOKEN", ""))),
+            kv(t("fields.base_url"), env.get("ANTHROPIC_BASE_URL", "N/A")),
         ]
-        body.append(("sub", "连接", conn_lines))
+        body.append(("sub", t("cmd.show.connection"), conn_lines))
         body.append("")
 
         # 模型覆盖子面板
         override_lines = []
         for label, key in [
-            ("默认模型", "ANTHROPIC_MODEL"),
-            ("Haiku", "ANTHROPIC_DEFAULT_HAIKU_MODEL"),
-            ("Sonnet", "ANTHROPIC_DEFAULT_SONNET_MODEL"),
-            ("Opus", "ANTHROPIC_DEFAULT_OPUS_MODEL"),
+            (t("cmd.show.default_model"), "ANTHROPIC_MODEL"),
+            (t("fields.haiku_override"), "ANTHROPIC_DEFAULT_HAIKU_MODEL"),
+            (t("fields.sonnet_override"), "ANTHROPIC_DEFAULT_SONNET_MODEL"),
+            (t("fields.opus_override"), "ANTHROPIC_DEFAULT_OPUS_MODEL"),
         ]:
             val = env.get(key)
             override_lines.append(kv(label, val if val else f"{DIM}N/A{RESET}"))
-        body.append(("sub", "模型覆盖", override_lines))
+        body.append(("sub", t("cmd.show.model_override"), override_lines))
         body.append("")
 
         # 标志子面板
         flag_lines = []
-        flag_lines.append("禁用")
-        for flag, desc in DISABLE_FLAGS:
+        flag_lines.append(t("cmd.show.flags_disabled"))
+        for flag, raw_desc in DISABLE_FLAGS:
+            desc = t(DISABLE_FLAG_I18N_KEYS.get(flag, "")) or raw_desc
             mark = f"{GREEN}✓{RESET}" if env.get(flag) == "1" else f"{RED}×{RESET}"
             flag_lines.append(f"  {mark} {desc}")
-        flag_lines.append("启用")
+        flag_lines.append(t("cmd.show.flags_enabled"))
         for flag, desc in ENABLE_FLAGS:
             mark = f"{GREEN}✓{RESET}" if env.get(flag) == "1" else f"{RED}×{RESET}"
             flag_lines.append(f"  {mark} {desc}")
-        body.append(("sub", "标志", flag_lines))
+        body.append(("sub", t("cmd.show.flags"), flag_lines))
         body.append("")
 
     # 推送通知
     hooks = prof_copy.get("hooks")
     if hooks and "bark_key" in hooks:
-        body.append(kv("推送通知", f"\U0001f514 Bark ({hooks.get('host_label', 'N/A')})"))
+        body.append(kv(t("cmd.show.push_notification"), f"\U0001f514 {t('cmd.show.bark')} ({hooks.get('host_label', 'N/A')})"))
     elif hooks:
-        body.append(kv("推送通知", "自定义 hooks 配置"))
+        body.append(kv(t("cmd.show.push_notification"), t("cmd.show.custom_hooks")))
     else:
-        body.append(kv("推送通知", f"{DIM}未配置{RESET}"))
+        body.append(kv(t("cmd.show.push_notification"), f"{DIM}{t('cmd.show.not_configured')}{RESET}"))
     body.append("")
 
     print(panel(name, mode_label, body))
@@ -434,12 +436,12 @@ def cmd_edit(args):
     profiles = load_profiles()
     name = args.name
     if name is None:
-        name = pick_profile("选择要编辑的配置")
+        name = pick_profile(t("cmd.edit_pick"))
         if name is None:
             return
 
     if name not in profiles:
-        print(f"错误: 配置 '{name}' 不存在。")
+        print(t("cmd.edit_not_found", name=name))
         sys.exit(1)
 
     old = profiles[name]
@@ -454,7 +456,7 @@ def cmd_edit(args):
     if teams_only:
         profile = dict(old)
     else:
-        print(f"编辑配置 '{name}'。按回车保留当前值。")
+        print(t("cmd.edit_intro", name=name))
         if mode == "mixed":
             profile = prompt_mixed_profile_fields(old)
             profile["mode"] = "mixed"
@@ -465,7 +467,7 @@ def cmd_edit(args):
         profile["enable1MContext"] = old_1m_context
     # CLI flags override
     if getattr(args, "enable_teams", False) and getattr(args, "disable_teams", False):
-        print("错误: 不能同时指定 --enable-teams 和 --disable-teams。")
+        print(t("cmd.edit_teams_conflict"))
         sys.exit(1)
     if getattr(args, "enable_teams", False):
         profile["enableTeams"] = True
@@ -475,7 +477,7 @@ def cmd_edit(args):
     profiles[name] = profile
     save_profiles(profiles)
     _mark_sync_dirty()
-    print(f"配置 '{name}' 已更新。")
+    print(t("cmd.edit_done", name=name))
 
 
 def cmd_delete(args):
@@ -483,21 +485,21 @@ def cmd_delete(args):
     profiles = load_profiles()
     name = args.name
     if name is None:
-        name = pick_profile("选择要删除的配置")
+        name = pick_profile(t("cmd.delete_pick"))
         if name is None:
             return
 
     if name not in profiles:
-        print(f"错误: 配置 '{name}' 不存在。")
+        print(t("cmd.delete_not_found", name=name))
         sys.exit(1)
 
     meta = load_meta()
     is_active = meta.get("active") == name
     if is_active:
-        print(f"警告: '{name}' 是当前活动配置。")
+        print(t("cmd.delete_active_warn", name=name))
 
-    if not confirm_action(f"确认删除配置 '{name}'？", default_yes=False):
-        print("已取消。")
+    if not confirm_action(t("cmd.delete_confirm", name=name), default_yes=False):
+        print(t("cmd.canceled"))
         return
 
     # Stop proxy only after confirmation
@@ -512,7 +514,7 @@ def cmd_delete(args):
     if is_active:
         meta["active"] = None
         save_meta(meta)
-    print(f"配置 '{name}' 已删除。")
+    print(t("cmd.delete_done", name=name))
 
 
 def cmd_current(_args):
@@ -521,12 +523,12 @@ def cmd_current(_args):
     active = meta.get("active")
 
     if not active:
-        print("当前无活动配置。")
+        print(t("cmd.current_none"))
         return
 
     profiles = load_profiles()
     if active not in profiles:
-        print(f"活动配置 '{active}' 不存在（可能已被删除）。")
+        print(t("cmd.current_missing", name=active))
         return
 
     prof = profiles[active]
@@ -535,40 +537,36 @@ def cmd_current(_args):
     _normalize_teams_flag(prof_copy)
     _normalize_1m_context_flag(prof_copy)
     mode = prof_copy.get("mode", "single")
-    mode_label = "混合模式" if mode == "mixed" else "单一模式"
+    mode_label = t("cmd.mode_mixed") if mode == "mixed" else t("cmd.mode_single")
     title = f"{active_marker()}{active}"
 
     body = []
     body.append("")
 
-    teams_status = f"{GREEN}✓ 已启用{RESET}" if prof_copy.get("enableTeams") else f"{DIM}未启用{RESET}"
-    context_1m_status = (
-        f"{GREEN}✓ 已启用{RESET}"
-        if prof_copy.get("enable1MContext")
-        else f"{DIM}未启用{RESET}"
-    )
+    teams_status = f"{GREEN}{t('cmd.show.teams_enabled')}{RESET}" if prof_copy.get("enableTeams") else f"{DIM}{t('cmd.show.teams_disabled')}{RESET}"
+    ctx_1m_status = f"{GREEN}{t('cmd.show.1m_enabled')}{RESET}" if prof_copy.get("enable1MContext") else f"{DIM}{t('cmd.show.1m_disabled')}{RESET}"
 
     if mode == "mixed":
         proxy_info = get_proxy_info()
         body.append(status_dot(proxy_info["running"]))
         if proxy_info["running"]:
-            body.append(f"PID: {proxy_info['pid']}  端口: {proxy_info.get('port', 'N/A')}")
+            body.append(f"{t('cmd.proxy_pid')}: {proxy_info['pid']}  {t('cmd.proxy_port')}: {proxy_info.get('port', 'N/A')}")
         body.append("")
-        body.append(kv("Teams 模式", teams_status))
-        body.append(kv("1M 上下文", context_1m_status))
+        body.append(kv(t("cmd.show.teams_mode"), teams_status))
+        body.append(kv(t("cmd.show.1m_context"), ctx_1m_status))
         body.append("")
         # 模型映射子面板
         mapping_lines = []
         for slot, target in prof_copy.get("model_mapping", {}).items():
             mapping_lines.append(f"{slot}    →  {target.get('provider', '?')} / {target.get('model', '?')}")
-        body.append(("sub", "模型映射", mapping_lines))
+        body.append(("sub", t("cmd.show.model_mapping"), mapping_lines))
     else:
-        body.append(kv("模型", prof_copy.get("model", "N/A")))
-        body.append(kv("努力等级", prof_copy.get("effortLevel", "high")))
-        body.append(kv("Teams 模式", teams_status))
-        body.append(kv("1M 上下文", context_1m_status))
+        body.append(kv(t("cmd.show.model"), prof_copy.get("model", "N/A")))
+        body.append(kv(t("cmd.show.effort"), prof_copy.get("effortLevel", "high")))
+        body.append(kv(t("cmd.show.teams_mode"), teams_status))
+        body.append(kv(t("cmd.show.1m_context"), ctx_1m_status))
         url = prof_copy.get("env", {}).get("ANTHROPIC_BASE_URL", "N/A")
-        body.append(kv("API 地址", url))
+        body.append(kv(t("fields.base_url"), url))
 
     body.append("")
     print(panel(title, mode_label, body))
@@ -579,17 +577,17 @@ def cmd_proxy_status(_args):
     proxy_info = get_proxy_info()
 
     if proxy_info["running"]:
-        print(f"代理状态: 运行中")
-        print(f"  PID:   {proxy_info['pid']}")
-        print(f"  端口:  {proxy_info.get('port', 'N/A')}")
+        print(t("cmd.proxy_running"))
+        print(f"  {t('cmd.proxy_pid')}:   {proxy_info['pid']}")
+        print(f"  {t('cmd.proxy_port')}:  {proxy_info.get('port', 'N/A')}")
         if "mapping" in proxy_info:
-            print("  模型映射:")
+            print(f"  {t('cmd.proxy_model_mapping')}:")
             for m in proxy_info["mapping"]:
                 print(f"    {m}")
     else:
-        print("代理状态: 未运行")
+        print(t("cmd.proxy_stopped"))
         if proxy_info["config"]:
-            print(f"  配置端口: {proxy_info.get('port', 'N/A')}")
+            print(f"  {t('cmd.proxy_config_port')}: {proxy_info.get('port', 'N/A')}")
 
 
 def cmd_proxy_stop(_args):
@@ -610,12 +608,12 @@ def cmd_teams(args):
     meta = load_meta()
     active = meta.get("active")
     if not active:
-        print("错误: 当前无活动配置。请先使用 'switch' 切换到某个配置。")
+        print(t("cmd.teams_no_active"))
         sys.exit(1)
 
     profiles = load_profiles()
     if active not in profiles:
-        print(f"错误: 活动配置 '{active}' 不存在。")
+        print(t("cmd.teams_missing", active=active))
         sys.exit(1)
 
     profile = profiles[active]
@@ -633,8 +631,8 @@ def cmd_teams(args):
     save_profiles(profiles)
     _mark_sync_dirty()
 
-    status = "已启用" if profile["enableTeams"] else "已禁用"
-    print(f"配置 '{active}' 的 Agent Teams 模式{status}。")
+    status = t("cmd.teams_enabled") if profile["enableTeams"] else t("cmd.teams_disabled")
+    print(t("cmd.teams_done", name=active, status=status))
 
     if args.apply:
         _apply_teams_to_settings(profile, active)

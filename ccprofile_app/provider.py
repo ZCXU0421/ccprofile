@@ -202,7 +202,7 @@ def cmd_provider_delete(args):
         sys.exit(1)
 
     if not confirm_action(t("prov.delete_confirm", name=name), default_yes=False):
-        print("已取消。")
+        print(f"  {t('term.cancelled')}")
         return
 
     del providers[name]

@@ -22,6 +22,8 @@ Layout geometry:
 import shutil
 import sys
 
+from .i18n import t
+
 # ---------------------------------------------------------------------------
 # ANSI colour constants
 # ---------------------------------------------------------------------------
@@ -161,8 +163,8 @@ def _truncate_to(text: str, target_width: int) -> str:
 def status_dot(running: bool) -> str:
     """Coloured status indicator: green ● running / red ● stopped."""
     if running:
-        return f"{GREEN}●{RESET} 运行中"
-    return f"{RED}●{RESET} 已停止"
+        return f"{GREEN}●{RESET} {t('display.proxy_running')}"
+    return f"{RED}●{RESET} {t('display.proxy_stopped')}"
 
 
 def active_marker() -> str:

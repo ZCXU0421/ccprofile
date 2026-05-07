@@ -2,6 +2,8 @@
 
 import sys
 
+from .i18n import t
+
 
 def _enable_vt_mode():
     """Windows 上启用 VT100 转义序列支持。"""
@@ -92,8 +94,10 @@ def _read_key():
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
-def select_from_list(items, prompt="请选择", default_index=0):
+def select_from_list(items, prompt=None, default_index=0):
     """上下键选择菜单。items 为 [(key, display_text), ...]。返回 key 或 None。"""
+    if prompt is None:
+        prompt = t("term.select_prompt")
     if not items:
         return None
 
@@ -105,7 +109,7 @@ def select_from_list(items, prompt="请选择", default_index=0):
         print(f"  {prompt}:")
         for i, (_, text) in enumerate(items, 1):
             print(f"    {i}) {text}")
-        choice = input(f"  请选择 [1-{len(items)}] (默认 {default_index + 1}): ").strip()
+        choice = input(f"  {t('term.select_numbered', total=len(items), default=default_index + 1)}: ").strip()
         if not choice:
             return items[default_index][0]
         if choice.isdigit():
@@ -125,7 +129,7 @@ def select_from_list(items, prompt="请选择", default_index=0):
             for _ in range(line_count):
                 sys.stdout.write('\x1b[A\x1b[2K\r')
         rendered = True
-        sys.stdout.write(f"  {prompt}  (\x1b[2m↑↓ 选择 · Enter 确认 · Esc 取消\x1b[0m)\n")
+        sys.stdout.write(f"  {prompt}  (\x1b[2m{t('term.select_hint')}\x1b[0m)\n")
         for i, (_, text) in enumerate(items):
             if i == selected:
                 sys.stdout.write(f"  \x1b[7m > {text}  \x1b[0m\n")
@@ -154,7 +158,7 @@ def select_from_list(items, prompt="请选择", default_index=0):
         elif key in ('escape', 'q'):
             for _ in range(line_count):
                 sys.stdout.write('\x1b[A\x1b[2K\r')
-            sys.stdout.write(f"  已取消\n")
+            sys.stdout.write(f"  {t('term.cancelled')}\n")
             sys.stdout.flush()
             return None
 
@@ -170,8 +174,8 @@ def confirm_action(prompt_text, default_yes=True):
         return ans == "y"
 
     items = [
-        (True,  "是"),
-        (False, "否"),
+        (True,  t("term.yes")),
+        (False, t("term.no")),
     ]
     result = select_from_list(items, prompt_text, default_index=0 if default_yes else 1)
     if result is None:  # Esc

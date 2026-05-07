@@ -24,6 +24,7 @@ jobs:
             platform: linux
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.platform == 'macos-intel' && 5 || 30 }}
     steps:
       - uses: actions/checkout@v4
 

@@ -624,16 +624,16 @@ STRINGS = {
     "proxy.log_read_error": {"zh": "错误: 读取日志文件失败: {error}", "en": "Error: Failed to read log file: {error}"},
     "proxy.lines_invalid": {"zh": "行数必须大于等于 1。", "en": "Line count must be at least 1."},
 
-# ── crypto.py ──
+    # ── crypto.py ──
     "crypto.not_initialized": {"zh": "错误: 未初始化。请先运行: {hint}", "en": "Error: Not initialized. Run first: {hint}"},
 
     # ── sync.py ──
 
     # menu
     "menu.sync_settings":         {"zh": "同步管理",            "en": "Sync Settings"},
+    "menu.sync_auto":             {"zh": "立即同步",            "en": "Sync Now"},
     "menu.sync_config":           {"zh": "配置 WebDAV 同步",    "en": "Configure WebDAV Sync"},
     "menu.sync_status":           {"zh": "查看同步状态",        "en": "Sync Status"},
-
     "menu.sync_strategy":         {"zh": "冲突解决策略",        "en": "Conflict Strategy"},
     "menu.sync_reset":            {"zh": "重置同步配置",        "en": "Reset Sync Config"},
 
@@ -694,7 +694,6 @@ STRINGS = {
     "sync.already_up_to_date":    {"zh": "已是最新，无需同步。",                  "en": "Already up to date."},
     "sync.auto_push_intro":       {"zh": "检测到本地有更新，正在推送到远端...",    "en": "Local changes detected, pushing to remote..."},
     "sync.auto_pull_intro":       {"zh": "检测到远端有更新，正在拉取...",          "en": "Remote changes detected, pulling..."},
-
 
     # sync conflict
     "sync.conflict_detected":    {"zh": "检测到冲突！",                           "en": "Conflict detected!"},
