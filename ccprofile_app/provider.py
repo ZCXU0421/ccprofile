@@ -13,6 +13,15 @@ from .terminal import confirm_action
 from .storage import load_profiles, load_providers, save_providers
 
 
+def _mark_sync_dirty():
+    """在同步已配置时标记本地数据变更。"""
+    from .sync import _sync_mark_dirty as _mark
+    try:
+        _mark()
+    except Exception:
+        pass
+
+
 def _validate_url(url: str) -> None:
     """验证 URL 格式。"""
     parsed = urlparse(url)
@@ -94,6 +103,7 @@ def cmd_provider_add(args):
 
     providers[name] = provider
     save_providers(providers)
+    _mark_sync_dirty()
     print(t("prov.add_done", name=name))
 
 
@@ -160,6 +170,7 @@ def cmd_provider_edit(args):
     _validate_url(provider["base_url"])
     providers[name] = provider
     save_providers(providers)
+    _mark_sync_dirty()
     print(t("prov.edit_done", name=name))
 
 
@@ -196,4 +207,5 @@ def cmd_provider_delete(args):
 
     del providers[name]
     save_providers(providers)
+    _mark_sync_dirty()
     print(t("prov.delete_done", name=name))

@@ -1,9 +1,27 @@
 """交互式菜单主循环。"""
 
-from .commands import cmd_add, cmd_context_1m, cmd_current, cmd_delete, cmd_edit, cmd_init, cmd_list, cmd_show, cmd_switch, cmd_teams
+from .commands import (
+    cmd_add,
+    cmd_context_1m,
+    cmd_current,
+    cmd_delete,
+    cmd_edit,
+    cmd_init,
+    cmd_list,
+    cmd_show,
+    cmd_switch,
+    cmd_teams,
+)
 from .constants import KEY_FILE
 from .i18n import get_language, set_language, t
 from .provider import cmd_provider_add, cmd_provider_delete, cmd_provider_edit, cmd_provider_list, cmd_provider_show
+from .sync import (
+    cmd_sync_auto,
+    cmd_sync_config,
+    cmd_sync_reset,
+    cmd_sync_status,
+    cmd_sync_strategy,
+)
 from .storage import load_meta
 from .picker import pick_profile, pick_provider
 from .terminal import select_from_list
@@ -48,6 +66,7 @@ def _system_menu():
     return [
         ("init",     t("menu.init_reset")),
         ("language", t("menu.language_settings")),
+        ("_sync",    t("menu.sync_settings")),
     ]
 
 
@@ -61,6 +80,16 @@ def _provider_menu():
     ]
 
 
+def _sync_menu():
+    return [
+        ("sync_auto",     t("menu.sync_auto")),
+        ("sync_config",   t("menu.sync_config")),
+        ("sync_status",   t("menu.sync_status")),
+        ("sync_strategy", t("menu.sync_strategy")),
+        ("sync_reset",    t("menu.sync_reset")),
+    ]
+
+
 def _sub_menus():
     return {
         "_view":     (t("menu.view_profiles"), _view_menu()),
@@ -68,6 +97,7 @@ def _sub_menus():
         "_provider": (t("menu.provider_mgmt"), _provider_menu()),
         "_system":   (t("menu.system_settings"), _system_menu()),
         "_advanced": (t("menu.advanced_settings"), _advanced_menu()),
+        "_sync":     (t("menu.sync_settings"), _sync_menu()),
     }
 
 
@@ -84,6 +114,11 @@ def interactive_menu():
         "delete": cmd_delete,
         "teams": cmd_teams,
         "context_1m": cmd_context_1m,
+        "sync_auto": cmd_sync_auto,
+        "sync_config": cmd_sync_config,
+        "sync_status": cmd_sync_status,
+        "sync_strategy": cmd_sync_strategy,
+        "sync_reset": cmd_sync_reset,
         "provider_add": cmd_provider_add,
         "provider_list": cmd_provider_list,
         "provider_show": cmd_provider_show,
@@ -155,6 +190,8 @@ def interactive_menu():
         elif cmd_name == "context_1m":
             args.action = "toggle"
             args.apply = True
+        elif cmd_name == "sync_strategy":
+            args.strategy_arg = None
 
         try:
             commands_map[cmd_name](args)
