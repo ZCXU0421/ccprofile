@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ccprofile installer for macOS/Linux
-# Run: bash install.sh
+# Run: bash install-macos.sh
 #
 # Can be run standalone — if no binary is found locally, it will
 # automatically download the correct one from GitHub Releases.

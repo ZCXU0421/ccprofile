@@ -97,7 +97,7 @@ class WebDAVClient:
         except WebDAVNotFoundError:
             return False
         except WebDAVError:
-            return False
+            raise
 
     def download(self, remote_path):
         resp = self._make_request("GET", remote_path)
@@ -134,18 +134,23 @@ class WebDAVClient:
             return None
 
     def ensure_directory(self, remote_path):
-        try:
-            resp = self._make_request("MKCOL", remote_path)
-            resp.close()
-        except WebDAVError as e:
-            if e.status_code in (301, 405):
-                self._verify_dir_exists(remote_path)
-            else:
-                raise
+        """Ensure remote directory exists, creating parent directories as needed."""
+        parts = [p for p in remote_path.strip("/").split("/") if p]
+        for i in range(1, len(parts) + 1):
+            sub = "/".join(parts[:i])
+            try:
+                resp = self._make_request("MKCOL", sub)
+                resp.close()
+            except WebDAVError as e:
+                if e.status_code in (301, 405):
+                    self._verify_dir_exists(sub)
+                else:
+                    raise
 
     def _verify_dir_exists(self, remote_path):
         """用 PROPFIND 验证目录存在，若不存在则抛出明确错误。"""
         headers = {"Depth": "0"}
+        resp = None
         try:
             resp = self._make_request("PROPFIND", remote_path, data=b"", headers=headers)
             if resp.status not in (200, 207):
@@ -153,9 +158,11 @@ class WebDAVClient:
                     f"Directory '{remote_path}' does not exist and cannot be created "
                     f"(server returned {resp.status} on PROPFIND)"
                 )
-            resp.close()
         except WebDAVNotFoundError:
             raise WebDAVError(
                 f"Directory '{remote_path}' does not exist and cannot be created. "
                 f"Please create it manually on the WebDAV server."
             )
+        finally:
+            if resp is not None:
+                resp.close()

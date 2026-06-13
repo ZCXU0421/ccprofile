@@ -339,7 +339,7 @@ class SyncTest(unittest.TestCase):
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list if call.args)
         self.assertIn(sync.t("sync.error_config_password_unreadable"), printed)
 
-    def test_load_snapshot_exits_with_friendly_error_when_local_key_is_unavailable(self):
+    def test_load_snapshot_raises_friendly_error_when_local_key_is_unavailable(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             snapshot_dir = Path(tmpdir) / "sync_snapshot"
             snapshot_dir.mkdir()
@@ -348,15 +348,11 @@ class SyncTest(unittest.TestCase):
 
             with patch.object(sync, "SYNC_SNAPSHOT_PROFILES", profiles_path), patch.object(
                 sync, "SYNC_SNAPSHOT_PROVIDERS", snapshot_dir / "providers.json"
-            ), patch.object(sync, "load_key", side_effect=RuntimeError("missing key")), patch(
-                "builtins.print"
-            ) as print_mock:
-                with self.assertRaises(SystemExit) as exc:
+            ), patch.object(sync, "load_key", side_effect=RuntimeError("missing key")):
+                with self.assertRaises(sync.SyncLocalKeyError) as exc:
                     sync._load_snapshot()
 
-        self.assertEqual(exc.exception.code, 1)
-        printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list if call.args)
-        self.assertIn(sync.t("sync.error_local_key_unavailable"), printed)
+        self.assertIn(sync.t("sync.error_local_key_unavailable"), str(exc.exception))
 
     def test_sync_mark_dirty_ignores_config_with_unreadable_password(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -450,7 +446,7 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(config["remote_profiles_md5"], "old-profiles")
         self.assertEqual(config["remote_providers_md5"], "old-providers")
 
-    def test_cmd_sync_config_exits_when_new_salt_upload_fails(self):
+    def test_cmd_sync_config_warns_when_new_salt_upload_fails(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             key_file = Path(tmpdir) / "key.bin"
             key_file.write_text("initialized", "utf-8")
@@ -467,8 +463,8 @@ class SyncTest(unittest.TestCase):
             ), patch.object(
                 sync, "select_from_list", return_value="merge"
             ), patch.object(
-                sync, "_save_sync_config"
-            ) as save_sync_config, patch.object(
+                sync, "_save_sync_setup"
+            ) as save_sync_setup, patch.object(
                 sync, "_save_snapshot"
             ) as save_snapshot, patch.object(
                 sync, "load_profiles", return_value={}
@@ -490,13 +486,15 @@ class SyncTest(unittest.TestCase):
                 sync.getpass,
                 "getpass",
                 side_effect=["webdav-pass", "sync-pass", "sync-pass"],
-            ):
-                with self.assertRaises(SystemExit) as exc:
-                    sync.cmd_sync_config(SimpleNamespace())
+            ), patch(
+                "builtins.print"
+            ) as print_mock:
+                sync.cmd_sync_config(SimpleNamespace())
 
-        self.assertEqual(exc.exception.code, 1)
-        save_sync_config.assert_not_called()
+        save_sync_setup.assert_called_once()
         save_snapshot.assert_not_called()
+        printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list if call.args)
+        self.assertIn(sync.t("sync.config_saved_no_salt"), printed)
 
     def test_cmd_sync_config_rotates_remote_salt_and_reencrypts_remote_data(self):
         with tempfile.TemporaryDirectory() as tmpdir:

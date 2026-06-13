@@ -67,6 +67,10 @@ class SyncConfigPasswordUnavailableError(SyncConfigError):
     """同步配置中的 WebDAV 密码无法用当前本地密钥解密。"""
 
 
+class SyncLocalKeyError(Exception):
+    """本地加密密钥不可用。"""
+
+
 def _derive_sync_key(passphrase: str, salt: bytes) -> bytes:
     """PBKDF2HMAC 派生同步密钥。"""
     kdf = PBKDF2HMAC(
@@ -112,7 +116,7 @@ def _get_sync_config() -> Optional[dict]:
             enc_bytes = base64.b64decode(config["password_encrypted"])
             try:
                 key = load_key()
-            except (SystemExit, Exception) as exc:
+            except Exception as exc:
                 raise SyncConfigPasswordUnavailableError(
                     t("sync.error_config_password_unreadable")
                 ) from exc
@@ -150,7 +154,7 @@ def _save_sync_config(config: dict) -> None:
     config_to_save = dict(config)
     password = config_to_save.pop("password", "")
     if password:
-        enc_bytes = encrypt_data({"p": password}, _load_local_key_or_exit())
+        enc_bytes = encrypt_data({"p": password}, _load_local_key())
         config_to_save["password_encrypted"] = base64.b64encode(enc_bytes).decode()
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     with FileLock(SYNC_CONFIG_FILE, exclusive=True):
@@ -164,7 +168,7 @@ def _save_sync_config(config: dict) -> None:
 def _save_snapshot(profiles: dict, providers: dict) -> None:
     """保存本地快照。"""
     SYNC_SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    key = _load_local_key_or_exit()
+    key = _load_local_key()
     atomic_write_bytes(
         SYNC_SNAPSHOT_PROFILES,
         Fernet(key).encrypt(json.dumps(profiles, sort_keys=True).encode("utf-8")),
@@ -183,7 +187,7 @@ def _load_snapshot() -> tuple[dict, dict]:
     providers = {}
     cipher = None
     if SYNC_SNAPSHOT_PROFILES.exists() or SYNC_SNAPSHOT_PROVIDERS.exists():
-        cipher = Fernet(_load_local_key_or_exit())
+        cipher = Fernet(_load_local_key())
     if SYNC_SNAPSHOT_PROFILES.exists():
         raw = SYNC_SNAPSHOT_PROFILES.read_bytes()
         profiles = _load_snapshot_file(raw, cipher)
@@ -211,13 +215,12 @@ def _load_snapshot_file(raw: bytes, cipher: Optional[Fernet] = None) -> dict:
     return json.loads(decrypted.decode("utf-8"))
 
 
-def _load_local_key_or_exit() -> bytes:
-    """读取本地加密密钥，失败时给出用户友好错误。"""
+def _load_local_key() -> bytes:
+    """读取本地加密密钥，失败时抛出 SyncLocalKeyError。"""
     try:
         return load_key()
     except Exception as exc:
-        print(f"  {RED}{t('sync.error_local_key_unavailable')}{RESET}: {exc}")
-        sys.exit(1)
+        raise SyncLocalKeyError(t("sync.error_local_key_unavailable") + f": {exc}") from exc
 
 
 def _update_sync_state(config: dict, profiles_md5: str, providers_md5: str) -> None:
@@ -695,7 +698,11 @@ def cmd_sync_auto(args):
 
     current_profiles = load_profiles()
     current_providers = load_providers()
-    snapshot_profiles, snapshot_providers = _load_snapshot()
+    try:
+        snapshot_profiles, snapshot_providers = _load_snapshot()
+    except SyncLocalKeyError as exc:
+        print(f"  {RED}{exc}{RESET}")
+        return
 
     remote_meta = _download_sync_meta(client, config["remote_dir"])
 
@@ -715,9 +722,13 @@ def cmd_sync_auto(args):
 
     if action == "push":
         print(t("sync.auto_push_intro"))
-        new_remote_profiles_md5, new_remote_providers_md5 = _do_push(
-            client, config, sync_key, current_profiles, current_providers
-        )
+        try:
+            new_remote_profiles_md5, new_remote_providers_md5 = _do_push(
+                client, config, sync_key, current_profiles, current_providers
+            )
+        except WebDAVError as exc:
+            print(f"  {RED}{t('sync.error_upload')}{RESET}: {exc}")
+            return
         if new_remote_profiles_md5 is None or new_remote_providers_md5 is None:
             return
         _update_sync_state(config, new_remote_profiles_md5, new_remote_providers_md5)
@@ -725,9 +736,13 @@ def cmd_sync_auto(args):
 
     elif action == "pull":
         print(t("sync.auto_pull_intro"))
-        new_remote_profiles_md5, new_remote_providers_md5 = _do_pull(
-            client, config, sync_key, remote_meta
-        )
+        try:
+            new_remote_profiles_md5, new_remote_providers_md5 = _do_pull(
+                client, config, sync_key, remote_meta
+            )
+        except WebDAVError as exc:
+            print(f"  {RED}{t('sync.error_download')}{RESET}: {exc}")
+            return
         if new_remote_profiles_md5 is None or new_remote_providers_md5 is None:
             return
         _update_sync_state(config, new_remote_profiles_md5, new_remote_providers_md5)
@@ -738,28 +753,40 @@ def cmd_sync_auto(args):
         print(t("sync.conflict_strategy", strategy=strategy))
         if strategy == "local-wins":
             print(t("sync.conflict_local_wins"))
-            new_remote_profiles_md5, new_remote_providers_md5 = _do_push(
-                client, config, sync_key, current_profiles, current_providers
-            )
+            try:
+                new_remote_profiles_md5, new_remote_providers_md5 = _do_push(
+                    client, config, sync_key, current_profiles, current_providers
+                )
+            except WebDAVError as exc:
+                print(f"  {RED}{t('sync.error_upload')}{RESET}: {exc}")
+                return
             if new_remote_profiles_md5 is None or new_remote_providers_md5 is None:
                 return
             _update_sync_state(config, new_remote_profiles_md5, new_remote_providers_md5)
             print(f"  {GREEN}{t('sync.push_done')}{RESET}")
         elif strategy == "remote-wins":
             print(t("sync.conflict_remote_wins"))
-            new_remote_profiles_md5, new_remote_providers_md5 = _do_pull(
-                client, config, sync_key, remote_meta
-            )
+            try:
+                new_remote_profiles_md5, new_remote_providers_md5 = _do_pull(
+                    client, config, sync_key, remote_meta
+                )
+            except WebDAVError as exc:
+                print(f"  {RED}{t('sync.error_download')}{RESET}: {exc}")
+                return
             if new_remote_profiles_md5 is None or new_remote_providers_md5 is None:
                 return
             _update_sync_state(config, new_remote_profiles_md5, new_remote_providers_md5)
             print(f"  {GREEN}{t('sync.pull_done')}{RESET}")
         else:  # merge
             print(t("sync.conflict_merge"))
-            new_remote_profiles_md5, new_remote_providers_md5 = _do_merge(
-                client, config, sync_key, snapshot_profiles, snapshot_providers,
-                current_profiles, current_providers
-            )
+            try:
+                new_remote_profiles_md5, new_remote_providers_md5 = _do_merge(
+                    client, config, sync_key, snapshot_profiles, snapshot_providers,
+                    current_profiles, current_providers
+                )
+            except WebDAVError as exc:
+                print(f"  {RED}{t('sync.error_upload')}{RESET}: {exc}")
+                return
             if new_remote_profiles_md5 is None or new_remote_providers_md5 is None:
                 return
             _update_sync_state(config, new_remote_profiles_md5, new_remote_providers_md5)
@@ -770,7 +797,11 @@ def _do_push(client, config, sync_key, current_profiles, current_providers):
     if not _verify_remote_sync_key(client, config, sync_key):
         return None, None
 
-    local_key = _load_local_key_or_exit()
+    try:
+        local_key = _load_local_key()
+    except SyncLocalKeyError as exc:
+        print(f"  {RED}{exc}{RESET}")
+        return None, None
     remote_profiles_enc = _build_remote_encrypted_payload(PROFILES_ENC, local_key, sync_key)
     remote_providers_enc = _build_remote_encrypted_payload(PROVIDERS_ENC, local_key, sync_key)
 
@@ -852,10 +883,22 @@ def _do_pull(client, config, sync_key, remote_meta):
         print(f"  {RED}{t('sync.error_download')}{RESET}: {exc}")
         return None, None
 
-    save_profiles(pulled_profiles)
-    save_providers(pulled_providers)
+    old_profiles = load_profiles()
+    old_providers = load_providers()
 
-    _save_snapshot(pulled_profiles, pulled_providers)
+    try:
+        save_profiles(pulled_profiles)
+        save_providers(pulled_providers)
+    except Exception:
+        save_profiles(old_profiles)
+        save_providers(old_providers)
+        raise
+
+    try:
+        _save_snapshot(pulled_profiles, pulled_providers)
+    except SyncLocalKeyError as exc:
+        print(f"  {RED}{exc}{RESET}")
+        return None, None
 
     new_profiles_md5 = _get_meta_digest(remote_meta, "profiles") if remote_meta else _compute_digest(remote_profiles_enc)
     new_providers_md5 = _get_meta_digest(remote_meta, "providers") if remote_meta else _compute_digest(remote_providers_enc)
@@ -898,9 +941,6 @@ def _do_merge(client, config, sync_key, snapshot_profiles, snapshot_providers,
         current_providers, remote_providers, snapshot_providers, config["device_name"]
     )
 
-    save_profiles(merged_profiles)
-    save_providers(merged_providers)
-
     remote_merged_profiles_enc = Fernet(sync_key).encrypt(json.dumps(merged_profiles, sort_keys=True).encode())
     remote_merged_providers_enc = Fernet(sync_key).encrypt(json.dumps(merged_providers, sort_keys=True).encode())
 
@@ -919,7 +959,14 @@ def _do_merge(client, config, sync_key, snapshot_profiles, snapshot_providers,
     providers_md5 = _compute_digest(remote_merged_providers_enc)
     _upload_sync_meta(client, config["remote_dir"], profiles_md5, providers_md5, config["device_name"])
 
-    _save_snapshot(merged_profiles, merged_providers)
+    save_profiles(merged_profiles)
+    save_providers(merged_providers)
+
+    try:
+        _save_snapshot(merged_profiles, merged_providers)
+    except SyncLocalKeyError as exc:
+        print(f"  {RED}{exc}{RESET}")
+        return None, None
 
     for w in profile_warnings:
         print(f"  {YELLOW}{w}{RESET}")

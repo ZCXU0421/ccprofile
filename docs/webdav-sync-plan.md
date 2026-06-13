@@ -212,14 +212,8 @@ def merge_profiles(local_profiles, remote_profiles, base_profiles):
 # 配置 WebDAV 连接
 ccprofile sync config
 
-# 手动同步（自动判断 push/pull，默认行为）
+# 自动同步（自动判断 push/pull/merge，默认行为）
 ccprofile sync
-
-# 强制推送本地数据到远端
-ccprofile sync push [--force]
-
-# 强制从远端拉取数据到本地
-ccprofile sync pull [--force]
 
 # 设置冲突解决策略
 ccprofile sync strategy [local-wins|remote-wins|merge]
@@ -332,13 +326,7 @@ def cmd_sync_config(args):
     """交互式配置 WebDAV 连接"""
 
 def cmd_sync(args):
-    """执行自动同步（push/pull 由变更检测自动决定）"""
-
-def cmd_sync_push(args):
-    """强制推送本地数据到 WebDAV"""
-
-def cmd_sync_pull(args):
-    """强制从 WebDAV 拉取数据到本地"""
+    """执行自动同步（push/pull/merge 由变更检测自动决定）"""
 
 def cmd_sync_status(args):
     """显示同步状态（上次同步时间、远端对比等）"""
@@ -428,11 +416,8 @@ SYNC_SNAPSHOT_PROVIDERS = SYNC_SNAPSHOT_DIR / "providers.json"
 # build_parser() 中新增子命令
 sync_sub = subparsers.add_parser('sync', help=t('sync_help'))
 sync_sub.add_argument('action', nargs='?', default='auto',
-                      choices=['auto', 'push', 'pull', 'config', 'status',
-                               'strategy', 'reset'],
+                      choices=['config', 'status', 'strategy', 'reset'],
                       help=t('sync_action_help'))
-sync_sub.add_argument('--force', action='store_true',
-                      help=t('sync_force_help'))
 sync_sub.add_argument('strategy_arg', nargs='?', default=None,
                       help=t('sync_strategy_help'))
 ```
@@ -496,7 +481,7 @@ _sync_mark_dirty()
 
 1. 实现变更检测逻辑
 2. 实现 pull 功能
-3. 实现自动同步模式（push/pull 自动判断）
+3. 实现自动同步模式（push/pull/merge 自动判断）
 4. 本地快照管理
 
 ### Phase 3：冲突处理（约 2 天）

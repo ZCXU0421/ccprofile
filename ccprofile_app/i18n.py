@@ -666,7 +666,7 @@ STRINGS = {
     "sync.prompt_sync_password_confirm": {"zh": "确认同步密码",                     "en": "Confirm sync password"},
     "sync.prompt_strategy":       {"zh": "选择冲突解决策略",                      "en": "Select conflict resolution strategy"},
     "sync.error_password_mismatch": {"zh": "两次密码不一致，请重新输入。",         "en": "Passwords do not match. Please try again."},
-    "sync.config_saved":          {"zh": "同步配置已保存。使用 'ccprofile sync push' 开始同步。", "en": "Sync config saved. Use 'ccprofile sync push' to start syncing."},
+    "sync.config_saved":          {"zh": "同步配置已保存。使用 'ccprofile sync' 开始同步。", "en": "Sync config saved. Use 'ccprofile sync' to start syncing."},
     "sync.config_saved_no_salt":  {"zh": "配置已保存，但盐值上传失败。同步功能可能无法正常工作，请稍后重试配置。", "en": "Config saved, but salt upload failed. Sync may not work correctly; try re-configuring later."},
     "sync.reusing_remote_salt":   {"zh": "检测到远端已有同步数据，复用已有密钥盐值。", "en": "Existing remote sync data detected, reusing remote key salt."},
     "sync.rotate_remote_salt":    {"zh": "检测到远端已有同步数据，将校验当前同步密码并轮换新的盐值。", "en": "Existing remote sync data detected; validating current sync password and rotating to a new salt."},

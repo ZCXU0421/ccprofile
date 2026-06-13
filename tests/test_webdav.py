@@ -11,10 +11,14 @@ class WebDAVClientTest(unittest.TestCase):
 
         for status_code in (301, 405):
             with self.subTest(status_code=status_code):
+                success_resp = SimpleNamespace(status=200, close=lambda: None)
                 with patch.object(
                     client,
                     "_make_request",
-                    side_effect=WebDAVError(f"HTTP {status_code}", status_code=status_code),
+                    side_effect=[
+                        WebDAVError(f"HTTP {status_code}", status_code=status_code),
+                        success_resp,
+                    ],
                 ):
                     client.ensure_directory("remote")
 
