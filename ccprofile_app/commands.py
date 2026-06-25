@@ -20,6 +20,7 @@ from .crypto import save_key
 from .display import panel, kv, status_dot, active_marker, CYAN, GREEN, RED, BOLD, DIM, RESET
 from .formatting import mask_token
 from .hooks import generate_hooks
+from .i18n import t
 from .picker import pick_profile, pick_provider
 from .terminal import confirm_action
 from .prompts import prompt_mixed_profile_fields, prompt_profile_fields
@@ -36,6 +37,8 @@ from .storage import (
     write_settings,
 )
 
+_DISABLE_1M_CONTEXT_ENV = "CLAUDE_CODE_DISABLE_1M_CONTEXT"
+
 
 def _normalize_teams_flag(profile):
     """统一处理 enableTeams 字段，兼容旧格式。"""
@@ -50,15 +53,24 @@ def _normalize_1m_context_flag(profile):
     if "enable1MContext" in profile:
         return
     env = profile.get("env", {})
-    # 旧格式：env 中存在 CLAUDE_CODE_DISABLE_1M_CONTEXT=1 表示未启用
-    # 缺失时默认禁用 1M context，与新 profile 的默认值保持一致
-    disable_env = env.pop("CLAUDE_CODE_DISABLE_1M_CONTEXT", None)
-    profile["enable1MContext"] = False if disable_env is None else disable_env != "1"
+    disable_1m = env.pop(_DISABLE_1M_CONTEXT_ENV, None)
+    profile["enable1MContext"] = disable_1m != "1" if disable_1m is not None else False
+
+
+def _mark_sync_dirty():
+    """在同步已配置时标记本地数据变更。"""
+    from .sync import _sync_mark_dirty as _mark
+    try:
+        _mark()
+    except Exception:
+        pass
 
 
 def cmd_init(_args):
     """初始化：生成加密密钥。"""
-    from .constants import KEY_FILE, PROVIDERS_ENC
+    import shutil
+
+    from .constants import KEY_FILE, PROVIDERS_ENC, SYNC_CONFIG_FILE, SYNC_SNAPSHOT_DIR
 
     if KEY_FILE.exists():
         if not confirm_action(t("cmd.init_exists_warn"), default_yes=False):
@@ -78,6 +90,10 @@ def cmd_init(_args):
     # 删除旧的提供商加密文件（使用新密钥后无法解密）
     if PROVIDERS_ENC.exists():
         PROVIDERS_ENC.unlink()
+    if SYNC_CONFIG_FILE.exists():
+        SYNC_CONFIG_FILE.unlink()
+    if SYNC_SNAPSHOT_DIR.exists():
+        shutil.rmtree(SYNC_SNAPSHOT_DIR)
 
     print(f"{t('cmd.init_done')}: {KEY_FILE}")
 
@@ -142,6 +158,8 @@ def cmd_add(args):
         profile["mode"] = "single"
 
     # --enable-teams 在所有模式下都生效
+    profile.setdefault("enableTeams", True)
+    profile.setdefault("enable1MContext", False)
     if args.enable_teams:
         profile["enableTeams"] = True
     else:
@@ -151,6 +169,7 @@ def cmd_add(args):
 
     profiles[name] = profile
     save_profiles(profiles)
+    _mark_sync_dirty()
     print(t("cmd.add_done", name=name))
 
 
@@ -245,10 +264,8 @@ def cmd_switch(args):
     # 写入 Teams 模式环境变量
     if profile.get("enableTeams"):
         settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
-
-    # 写入 1M 上下文环境变量（关闭时设置 DISABLE 标志）
-    if not profile.get("enable1MContext"):
-        settings["env"]["CLAUDE_CODE_DISABLE_1M_CONTEXT"] = "1"
+    if not profile.get("enable1MContext", False):
+        settings["env"][_DISABLE_1M_CONTEXT_ENV] = "1"
 
     if "model" in profile:
         settings["model"] = profile["model"]
@@ -432,7 +449,7 @@ def cmd_edit(args):
     _normalize_1m_context_flag(old)
     mode = old.get("mode", "single")
     old_teams = old.get("enableTeams")
-    old_1m = old.get("enable1MContext")
+    old_1m_context = old.get("enable1MContext")
 
     # 仅切换 Teams flag 时跳过交互流程
     teams_only = (getattr(args, "enable_teams", False) or getattr(args, "disable_teams", False))
@@ -447,7 +464,7 @@ def cmd_edit(args):
             profile = prompt_profile_fields(old)
             profile["mode"] = "single"
         profile["enableTeams"] = old_teams
-        profile["enable1MContext"] = old_1m
+        profile["enable1MContext"] = old_1m_context
     # CLI flags override
     if getattr(args, "enable_teams", False) and getattr(args, "disable_teams", False):
         print(t("cmd.edit_teams_conflict"))
@@ -459,6 +476,7 @@ def cmd_edit(args):
 
     profiles[name] = profile
     save_profiles(profiles)
+    _mark_sync_dirty()
     print(t("cmd.edit_done", name=name))
 
 
@@ -492,6 +510,7 @@ def cmd_delete(args):
 
     del profiles[name]
     save_profiles(profiles)
+    _mark_sync_dirty()
     if is_active:
         meta["active"] = None
         save_meta(meta)
@@ -610,6 +629,7 @@ def cmd_teams(args):
 
     profiles[active] = profile
     save_profiles(profiles)
+    _mark_sync_dirty()
 
     status = t("cmd.teams_enabled") if profile["enableTeams"] else t("cmd.teams_disabled")
     print(t("cmd.teams_done", name=active, status=status))
@@ -618,20 +638,8 @@ def cmd_teams(args):
         _apply_teams_to_settings(profile, active)
 
 
-def _apply_teams_to_settings(profile, name):
-    """将 Teams 状态应用到 settings.json，无需完整 switch。"""
-    settings = read_settings()
-    if "env" not in settings:
-        settings["env"] = {}
-    if profile.get("enableTeams"):
-        settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
-    else:
-        settings["env"].pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
-    write_settings(settings)
-
-
 def cmd_context_1m(args):
-    """切换当前配置的 1M 上下文。"""
+    """切换当前配置的 1M 上下文模式。"""
     meta = load_meta()
     active = meta.get("active")
     if not active:
@@ -651,11 +659,12 @@ def cmd_context_1m(args):
         profile["enable1MContext"] = True
     elif action == "off":
         profile["enable1MContext"] = False
-    else:  # toggle
+    else:
         profile["enable1MContext"] = not profile.get("enable1MContext", False)
 
     profiles[active] = profile
     save_profiles(profiles)
+    _mark_sync_dirty()
 
     status = t("cmd.1m_enabled") if profile["enable1MContext"] else t("cmd.1m_disabled")
     print(t("cmd.1m_done", name=active, status=status))
@@ -664,13 +673,25 @@ def cmd_context_1m(args):
         _apply_1m_context_to_settings(profile, active)
 
 
+def _apply_teams_to_settings(profile, name):
+    """将 Teams 状态应用到 settings.json，无需完整 switch。"""
+    settings = read_settings()
+    if "env" not in settings:
+        settings["env"] = {}
+    if profile.get("enableTeams"):
+        settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+    else:
+        settings["env"].pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
+    write_settings(settings)
+
+
 def _apply_1m_context_to_settings(profile, name):
     """将 1M 上下文状态应用到 settings.json，无需完整 switch。"""
     settings = read_settings()
     if "env" not in settings:
         settings["env"] = {}
-    if not profile.get("enable1MContext"):
-        settings["env"]["CLAUDE_CODE_DISABLE_1M_CONTEXT"] = "1"
+    if profile.get("enable1MContext"):
+        settings["env"].pop(_DISABLE_1M_CONTEXT_ENV, None)
     else:
-        settings["env"].pop("CLAUDE_CODE_DISABLE_1M_CONTEXT", None)
+        settings["env"][_DISABLE_1M_CONTEXT_ENV] = "1"
     write_settings(settings)

@@ -444,9 +444,6 @@ STRINGS = {
     "cmd.show.bark": {"zh": "Bark", "en": "Bark"},
 
     # ── cmd_show proxy status ──
-    "cmd.proxy_pid": {"zh": "PID", "en": "PID"},
-    "cmd.proxy_port": {"zh": "端口", "en": "Port"},
-    "cmd.proxy_config_port": {"zh": "配置端口", "en": "Config Port"},
     "cmd.proxy_model_mapping": {"zh": "模型映射", "en": "Model Mapping"},
 
     # ── additional display labels ──
@@ -629,6 +626,112 @@ STRINGS = {
 
     # ── crypto.py ──
     "crypto.not_initialized": {"zh": "错误: 未初始化。请先运行: {hint}", "en": "Error: Not initialized. Run first: {hint}"},
+
+    # ── sync.py ──
+
+    # menu
+    "menu.sync_settings":         {"zh": "同步管理",            "en": "Sync Settings"},
+    "menu.sync_auto":             {"zh": "立即同步",            "en": "Sync Now"},
+    "menu.sync_config":           {"zh": "配置 WebDAV 同步",    "en": "Configure WebDAV Sync"},
+    "menu.sync_status":           {"zh": "查看同步状态",        "en": "Sync Status"},
+    "menu.sync_strategy":         {"zh": "冲突解决策略",        "en": "Conflict Strategy"},
+    "menu.sync_reset":            {"zh": "重置同步配置",        "en": "Reset Sync Config"},
+
+    # cli
+    "cli.sync_help":              {"zh": "WebDAV 同步",                            "en": "WebDAV sync"},
+    "cli.sync_config_help":       {"zh": "配置 WebDAV 连接",                       "en": "Configure WebDAV connection"},
+    "cli.sync_status_help":       {"zh": "显示同步状态",                           "en": "Show sync status"},
+    "cli.sync_strategy_help":     {"zh": "设置冲突解决策略",                       "en": "Set conflict resolution strategy"},
+    "cli.sync_strategy_arg_help": {"zh": "策略名称 (merge/local-wins/remote-wins)", "en": "Strategy name (merge/local-wins/remote-wins)"},
+    "cli.sync_reset_help":        {"zh": "清除本地同步配置",                       "en": "Clear local sync config"},
+
+    # sync config
+    "sync.config_title":          {"zh": "WebDAV 同步配置", "en": "WebDAV Sync Configuration"},
+    "sync.default_remote_dir":    {"zh": "ccprofile",      "en": "ccprofile"},
+    "sync.prompt_url":            {"zh": "WebDAV 服务器地址",                     "en": "WebDAV server URL"},
+    "sync.prompt_username":       {"zh": "用户名",                               "en": "Username"},
+    "sync.prompt_password":       {"zh": "密码",                                 "en": "Password"},
+    "sync.prompt_remote_dir":      {"zh": "远端目录",                             "en": "Remote directory"},
+    "sync.prompt_device_name":    {"zh": "设备名称 (用于冲突标识)",              "en": "Device name (for conflict identification)"},
+    "sync.prompt_no_ssl":         {"zh": "禁用 SSL 证书验证?",                   "en": "Disable SSL certificate verification?"},
+    "sync.testing_connection":    {"zh": "正在测试连接...",                       "en": "Testing connection..."},
+    "sync.retry_attempt":         {"zh": "重试 ({n}/3)",                          "en": "Retry ({n}/3)"},
+    "sync.error_connection_failed": {"zh": "连接失败",                            "en": "Connection failed"},
+    "sync.error_ensure_dir":     {"zh": "无法创建远端目录",                      "en": "Failed to create remote directory"},
+    "sync.test_connection_ok":    {"zh": "连接测试成功",                          "en": "Connection test successful"},
+    "sync.error_http_warning":   {"zh": "警告: 使用 HTTP 传输数据不安全，建议使用 HTTPS。", "en": "Warning: Using HTTP is insecure. HTTPS is recommended."},
+    "sync.prompt_sync_password_intro": {"zh": "设置同步密码（用于加密远端数据，请妥善保管）", "en": "Set sync password (used to encrypt remote data, keep it safe)"},
+    "sync.prompt_sync_password":  {"zh": "同步密码",                              "en": "Sync password"},
+    "sync.prompt_current_sync_password": {"zh": "当前同步密码",                   "en": "Current sync password"},
+    "sync.prompt_sync_password_confirm": {"zh": "确认同步密码",                     "en": "Confirm sync password"},
+    "sync.prompt_strategy":       {"zh": "选择冲突解决策略",                      "en": "Select conflict resolution strategy"},
+    "sync.error_password_mismatch": {"zh": "两次密码不一致，请重新输入。",         "en": "Passwords do not match. Please try again."},
+    "sync.config_saved":          {"zh": "同步配置已保存。使用 'ccprofile sync' 开始同步。", "en": "Sync config saved. Use 'ccprofile sync' to start syncing."},
+    "sync.config_saved_no_salt":  {"zh": "配置已保存，但盐值上传失败。同步功能可能无法正常工作，请稍后重试配置。", "en": "Config saved, but salt upload failed. Sync may not work correctly; try re-configuring later."},
+    "sync.reusing_remote_salt":   {"zh": "检测到远端已有同步数据，复用已有密钥盐值。", "en": "Existing remote sync data detected, reusing remote key salt."},
+    "sync.rotate_remote_salt":    {"zh": "检测到远端已有同步数据，将校验当前同步密码并轮换新的盐值。", "en": "Existing remote sync data detected; validating current sync password and rotating to a new salt."},
+
+    # sync errors
+    "sync.error_not_initialized": {"zh": "错误: 系统尚未初始化。请先运行 'ccprofile init'。", "en": "Error: Not initialized. Run 'ccprofile init' first."},
+    "sync.error_no_config":      {"zh": "错误: 未配置同步。请先运行 'ccprofile sync config'。", "en": "Error: Sync not configured. Run 'ccprofile sync config' first."},
+    "sync.error_config_invalid": {"zh": "错误: 同步配置文件已损坏，无法读取。请重新运行 'ccprofile sync config'。", "en": "Error: Sync configuration is corrupt and cannot be read. Run 'ccprofile sync config' again."},
+    "sync.error_config_password_unreadable": {"zh": "错误: 同步配置中的 WebDAV 密码无法用当前本地密钥解密。请重新运行 'ccprofile sync config' 或 'ccprofile sync reset'。", "en": "Error: The WebDAV password in sync config cannot be decrypted with the current local key. Run 'ccprofile sync config' or 'ccprofile sync reset'."},
+    "sync.error_connection":     {"zh": "错误: 无法连接到 WebDAV 服务器。",          "en": "Error: Cannot connect to WebDAV server."},
+    "sync.error_timeout":        {"zh": "错误: 连接超时。",                         "en": "Error: Connection timed out."},
+    "sync.error_ssl":            {"zh": "错误: SSL 证书验证失败。如果使用自签证书，请在 sync config 中禁用验证。", "en": "Error: SSL certificate verification failed. Disable verification in sync config if using a self-signed certificate."},
+    "sync.error_auth":           {"zh": "错误: 认证失败，请检查用户名和密码。",    "en": "Error: Authentication failed. Check your username and password."},
+    "sync.error_sync_key_invalid": {"zh": "错误: 同步密码不正确，无法解密远端数据。", "en": "Error: Sync password incorrect, cannot decrypt remote data."},
+    "sync.error_local_key_unavailable": {"zh": "错误: 本地加密密钥不可用，无法读取同步快照。", "en": "Error: Local encryption key unavailable; cannot read sync snapshot."},
+    "sync.error_no_remote_data": {"zh": "错误: 远端没有同步数据。",                "en": "Error: No remote sync data found."},
+    "sync.error_upload":         {"zh": "错误: 上传失败",                          "en": "Error: Upload failed"},
+    "sync.error_upload_salt":    {"zh": "错误: 上传同步盐值失败",                  "en": "Error: Failed to upload sync salt"},
+    "sync.error_download":       {"zh": "错误: 下载失败",                          "en": "Error: Download failed"},
+    "sync.warning_snapshot_invalid": {"zh": "警告: 本地同步快照无法解密或解析，已按空快照处理。", "en": "Warning: Local sync snapshot could not be decrypted or parsed; treating it as empty."},
+
+    # sync operations
+    "sync.push_done":             {"zh": "推送完成。",                             "en": "Push complete."},
+    "sync.pull_done":             {"zh": "拉取完成。",                             "en": "Pull complete."},
+    "sync.already_up_to_date":    {"zh": "已是最新，无需同步。",                  "en": "Already up to date."},
+    "sync.auto_push_intro":       {"zh": "检测到本地有更新，正在推送到远端...",    "en": "Local changes detected, pushing to remote..."},
+    "sync.auto_pull_intro":       {"zh": "检测到远端有更新，正在拉取...",          "en": "Remote changes detected, pulling..."},
+
+    # sync conflict
+    "sync.conflict_detected":    {"zh": "检测到冲突！",                           "en": "Conflict detected!"},
+    "sync.conflict_strategy":    {"zh": "冲突解决策略: {strategy}",               "en": "Conflict resolution strategy: {strategy}"},
+    "sync.conflict_local_wins":  {"zh": "使用本地数据覆盖远端。",                 "en": "Overwriting remote with local data."},
+    "sync.conflict_remote_wins": {"zh": "使用远端数据覆盖本地。",                 "en": "Overwriting local with remote data."},
+    "sync.conflict_merge":       {"zh": "执行三方合并...",                         "en": "Performing three-way merge..."},
+    "sync.conflict_key":         {"zh": "冲突: {conflict_key}",                   "en": "Conflict: {conflict_key}"},
+    "sync.conflict_key_remote_kept": {"zh": "冲突: {conflict_key}，保留远端原键，本地副本保存为 {duplicate_key}", "en": "Conflict: {conflict_key}; kept remote key and saved the local copy as {duplicate_key}"},
+    "sync.merge_done":           {"zh": "合并完成。",                             "en": "Merge complete."},
+
+    # sync strategy
+    "sync.strategy_merge":       {"zh": "合并 (推荐)",                            "en": "Merge (recommended)"},
+    "sync.strategy_local":       {"zh": "本地优先",                               "en": "Local wins"},
+    "sync.strategy_remote":      {"zh": "远端优先",                               "en": "Remote wins"},
+    "sync.strategy_done":        {"zh": "冲突策略已更新。",                        "en": "Strategy updated."},
+
+    # sync status
+    "sync.status_title":         {"zh": "同步状态",                               "en": "Sync Status"},
+    "sync.status_url":           {"zh": "服务器",                                 "en": "Server"},
+    "sync.status_username":      {"zh": "用户名",                                 "en": "Username"},
+    "sync.status_remote_dir":    {"zh": "远端目录",                               "en": "Remote Dir"},
+    "sync.status_device":        {"zh": "设备名称",                               "en": "Device"},
+    "sync.status_strategy":      {"zh": "冲突策略",                               "en": "Strategy"},
+    "sync.status_last_sync":     {"zh": "上次同步",                               "en": "Last Sync"},
+    "sync.status_snapshot_profiles":  {"zh": "快照配置数",                        "en": "Snapshot Profiles"},
+    "sync.status_snapshot_providers": {"zh": "快照提供商数",                      "en": "Snapshot Providers"},
+    "sync.status_local_dirty":   {"zh": "本地已变更",                             "en": "Local dirty"},
+    "sync.status_dirty":          {"zh": "是",                                     "en": "Yes"},
+    "sync.status_clean":         {"zh": "否",                                     "en": "No"},
+    "sync.status_remote_ok":     {"zh": "远端连接: 正常",                         "en": "Remote: OK"},
+    "sync.status_remote_error":  {"zh": "远端连接: 失败",                         "en": "Remote: Error"},
+
+    # sync reset
+    "sync.reset_confirm":        {"zh": "确认重置同步配置？这将删除所有本地同步数据。", "en": "Confirm reset sync config? This will delete all local sync data."},
+    "sync.reset_done":           {"zh": "同步配置已重置。",                         "en": "Sync config reset."},
+
+    # crypto
     "crypto.decrypt_failed": {"zh": "错误: 解密失败，密钥可能不匹配或数据已损坏。请尝试重新初始化。", "en": "Error: Decryption failed. Key mismatch or corrupted data. Try re-initializing."},
 }
 

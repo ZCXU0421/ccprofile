@@ -5,4 +5,5 @@ dist/
 *.spec
 .claude/
 docs/plan.md
+dev.sh
 
