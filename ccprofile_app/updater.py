@@ -62,3 +62,16 @@ def is_newer(latest, current, include_prerelease=False):
     if lp[3] and not include_prerelease:
         return False  # ignore prereleases unless explicitly asked
     return _version_key(lp) > _version_key(cp)
+
+
+def platform_asset():
+    """Return the release asset filename for the current platform."""
+    if sys.platform == "darwin":
+        if platform.machine() == "arm64":
+            return "ccprofile-macos-arm64.tar.gz"
+        raise UpdateError(t("update.err_unsupported"))
+    if sys.platform == "linux":
+        return "ccprofile-linux.tar.gz"
+    if sys.platform == "win32":
+        return "ccprofile-windows.zip"
+    raise UpdateError(t("update.err_unsupported"))

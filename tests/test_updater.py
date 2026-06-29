@@ -1,4 +1,7 @@
 import unittest
+import unittest.mock
+import platform
+import sys
 
 from ccprofile_app import updater
 from ccprofile_app.updater import UpdateError, is_newer, parse_version
@@ -35,6 +38,27 @@ class VersionTest(unittest.TestCase):
 
     def test_prerelease_is_older_than_release_of_same_xyz(self):
         self.assertFalse(is_newer("0.4.0-rc1", "0.4.0", include_prerelease=True))
+
+
+class PlatformAssetTest(unittest.TestCase):
+    def test_macos_arm64(self):
+        with unittest.mock.patch.object(sys, "platform", "darwin"), \
+             unittest.mock.patch.object(platform, "machine", lambda: "arm64"):
+            self.assertEqual(updater.platform_asset(), "ccprofile-macos-arm64.tar.gz")
+
+    def test_macos_intel_unsupported(self):
+        with unittest.mock.patch.object(sys, "platform", "darwin"), \
+             unittest.mock.patch.object(platform, "machine", lambda: "x86_64"):
+            with self.assertRaises(UpdateError):
+                updater.platform_asset()
+
+    def test_linux(self):
+        with unittest.mock.patch.object(sys, "platform", "linux"):
+            self.assertEqual(updater.platform_asset(), "ccprofile-linux.tar.gz")
+
+    def test_windows(self):
+        with unittest.mock.patch.object(sys, "platform", "win32"):
+            self.assertEqual(updater.platform_asset(), "ccprofile-windows.zip")
 
 
 if __name__ == "__main__":
