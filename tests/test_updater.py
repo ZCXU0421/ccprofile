@@ -177,5 +177,50 @@ class DownloadVerifyExtractTest(unittest.TestCase):
             self.assertFalse((Path(work).parent / "evil.txt").exists())
 
 
+class ReplaceUnixTest(unittest.TestCase):
+    def test_replace_swaps_bundle_and_cleans_backup(self):
+        with tempfile.TemporaryDirectory() as work:
+            work = Path(work)
+            # simulate installed bundle: work/install/ccprofile (+ _internal)
+            install = work / "install"
+            bundle = install / "ccprofile"
+            bundle.mkdir(parents=True)
+            (bundle / "ccprofile").write_text("OLD")
+            (bundle / "_internal").mkdir()
+            (bundle / "_internal" / "lib.so").write_text("old-lib")
+
+            # the "new" extracted bundle
+            new_bundle = work / "new" / "ccprofile"
+            new_bundle.mkdir(parents=True)
+            (new_bundle / "ccprofile").write_text("NEW")
+
+            with unittest.mock.patch.object(updater, "_bundle_dir", return_value=bundle), \
+                 unittest.mock.patch.object(updater, "is_frozen", return_value=True):
+                updater.replace_bundle_unix(new_bundle)
+
+            self.assertEqual((bundle / "ccprofile").read_text(), "NEW")
+            self.assertFalse((install / "ccprofile.old").exists())
+
+    def test_replace_rolls_back_on_move_failure(self):
+        with tempfile.TemporaryDirectory() as work:
+            work = Path(work)
+            install = work / "install"
+            bundle = install / "ccprofile"
+            bundle.mkdir(parents=True)
+            (bundle / "ccprofile").write_text("OLD")
+
+            # A non-existent new bundle makes the second move fail for real,
+            # exercising the rollback path without mocking shutil.move.
+            missing_new = work / "does-not-exist" / "ccprofile"
+
+            with unittest.mock.patch.object(updater, "_bundle_dir", return_value=bundle), \
+                 unittest.mock.patch.object(updater, "is_frozen", return_value=True):
+                with self.assertRaises(UpdateError):
+                    updater.replace_bundle_unix(missing_new)
+            # rolled back: original exe restored, backup cleaned up
+            self.assertEqual((bundle / "ccprofile").read_text(), "OLD")
+            self.assertFalse((install / "ccprofile.old").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

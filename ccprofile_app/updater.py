@@ -232,3 +232,35 @@ def extract_bundle(archive_path, dest_dir):
     if not (bundle / exe_name).exists():
         raise UpdateError(t("update.err_extract"))
     return bundle
+
+
+def is_frozen():
+    """Return True when running as a PyInstaller build."""
+    return getattr(sys, "frozen", False)
+
+
+def _bundle_dir():
+    """Return the onedir bundle directory containing the running executable."""
+    return Path(sys.executable).parent
+
+
+def replace_bundle_unix(new_bundle_dir):
+    """Atomically swap the bundle dir on macOS/Linux (safe while running)."""
+    new_bundle_dir = Path(new_bundle_dir)
+    target = _bundle_dir()
+    backup = target.with_name(target.name + ".old")
+    if backup.exists():
+        shutil.rmtree(backup, ignore_errors=True)
+
+    try:
+        shutil.move(str(target), str(backup))
+    except OSError:
+        raise UpdateError(t("update.err_install"))
+    try:
+        shutil.move(str(new_bundle_dir), str(target))
+    except Exception:
+        if target.exists():
+            shutil.rmtree(target, ignore_errors=True)
+        shutil.move(str(backup), str(target))
+        raise UpdateError(t("update.err_install"))
+    shutil.rmtree(backup, ignore_errors=True)
