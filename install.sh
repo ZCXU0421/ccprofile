@@ -92,9 +92,6 @@ for DIR in "$SCRIPT_DIR/dist" "$SCRIPT_DIR"; do
         if [ -f "$DIR/ccprofile-macos-arm64" ]; then
             BINARY="$DIR/ccprofile-macos-arm64"
             break
-        elif [ -f "$DIR/ccprofile-macos-intel" ]; then
-            BINARY="$DIR/ccprofile-macos-intel"
-            break
         elif [ -f "$DIR/ccprofile-macos" ]; then
             BINARY="$DIR/ccprofile-macos"
             break
@@ -116,7 +113,8 @@ if [ -z "$BINARY" ] && [ -z "$BUNDLE_DIR" ]; then
         if [ "$(uname -m)" = "arm64" ]; then
             REMOTE_NAME="ccprofile-macos-arm64.tar.gz"
         else
-            REMOTE_NAME="ccprofile-macos-intel.tar.gz"
+            echo "[ERROR] Intel Mac is no longer supported. Apple Silicon (arm64) is required."
+            exit 1
         fi
     elif [ "$(uname -s)" = "Linux" ]; then
         REMOTE_NAME="ccprofile-linux.tar.gz"
