@@ -733,6 +733,43 @@ STRINGS = {
 
     # crypto
     "crypto.decrypt_failed": {"zh": "错误: 解密失败，密钥可能不匹配或数据已损坏。请尝试重新初始化。", "en": "Error: Decryption failed. Key mismatch or corrupted data. Try re-initializing."},
+
+    # ── cli.py update ──
+    "cli.update_help": {"zh": "检测并更新到最新版本", "en": "Check for and update to the latest version"},
+    "cli.update_check_help": {"zh": "仅检测，不更新", "en": "Check only, do not update"},
+    "cli.update_yes_help": {"zh": "跳过确认", "en": "Skip confirmation"},
+    "cli.update_force_help": {"zh": "即使同版本也重装", "en": "Reinstall even if same version"},
+    "cli.update_prerelease_help": {"zh": "纳入预发布版本", "en": "Include pre-release versions"},
+
+    # ── menu.py update ──
+    "menu.check_update": {"zh": "检查更新", "en": "Check for Updates"},
+
+    # ── updater.py ──
+    "update.checking": {"zh": "正在检查最新版本...", "en": "Checking for the latest version..."},
+    "update.current": {"zh": "当前版本", "en": "Current version"},
+    "update.latest": {"zh": "最新版本", "en": "Latest version"},
+    "update.up_to_date": {"zh": "已是最新版本。", "en": "Already up to date."},
+    "update.new_available": {"zh": "有新版本可用", "en": "A new version is available"},
+    "update.changelog": {"zh": "更新内容", "en": "Release notes"},
+    "update.confirm": {"zh": "是否更新到 {version}？", "en": "Update to {version}?"},
+    "update.canceled": {"zh": "已取消。", "en": "Canceled."},
+    "update.downloading": {"zh": "正在下载 {asset}", "en": "Downloading {asset}"},
+    "update.verifying": {"zh": "正在校验 SHA256", "en": "Verifying SHA256"},
+    "update.extracting": {"zh": "正在安装", "en": "Installing"},
+    "update.success_unix": {"zh": "更新成功！当前版本: {version}", "en": "Updated! Now at version {version}"},
+    "update.success_windows": {"zh": "更新成功！请重新运行 ccprofile。", "en": "Updated! Please re-run ccprofile."},
+    "update.launch_hint": {
+        "zh": "[ccprofile] 发现新版本 {version}，运行 `ccprofile update` 更新。",
+        "en": "[ccprofile] New version {version} available. Run `ccprofile update`.",
+    },
+    "update.err_network": {"zh": "错误: 无法连接到 GitHub，请检查网络。", "en": "Error: Cannot reach GitHub. Check your network."},
+    "update.err_rate_limited": {"zh": "错误: GitHub API 限流，请稍后再试。", "en": "Error: GitHub API rate-limited. Try again later."},
+    "update.err_checksum": {"zh": "错误: SHA256 校验失败，已中止。", "en": "Error: SHA256 verification failed. Aborted."},
+    "update.err_checksum_missing": {"zh": "错误: 未找到该资产的校验值。", "en": "Error: No checksum found for the asset."},
+    "update.err_not_frozen": {"zh": "源码运行模式无法自更新。请用 git pull 或安装正式版。", "en": "Running from source; use git pull or install a release."},
+    "update.err_unsupported": {"zh": "错误: 不支持的平台（Intel Mac 已停止支持）。", "en": "Error: Unsupported platform (Intel Mac is no longer supported)."},
+    "update.err_extract": {"zh": "错误: 安装包解压失败或布局不符。", "en": "Error: Failed to extract or invalid archive layout."},
+    "update.err_install": {"zh": "错误: 替换安装目录失败，已回滚。", "en": "Error: Failed to replace install dir; rolled back."},
 }
 
 # ── Field key → i18n key mappings (used by prompts.py and commands.py) ──
