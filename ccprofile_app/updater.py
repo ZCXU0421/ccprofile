@@ -316,3 +316,43 @@ def replace_bundle_windows(new_bundle_dir):
         creationflags=creationflags,
         close_fds=True,
     )
+
+
+def _load_check_cache():
+    try:
+        return json.loads(UPDATE_CHECK_FILE.read_text("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_check_cache(cache):
+    try:
+        UPDATE_CHECK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        UPDATE_CHECK_FILE.write_text(
+            json.dumps(cache, ensure_ascii=False), "utf-8"
+        )
+    except OSError:
+        pass
+
+
+def maybe_check_on_launch():
+    """Silently check for a newer release at most once per interval; hint on stderr."""
+    if os.environ.get("CCPROFILE_NO_UPDATE_CHECK") == "1":
+        return
+    if not is_frozen():
+        return
+
+    cache = _load_check_cache()
+    now = int(time.time())
+    if should_check_now(cache, now):
+        try:
+            release = fetch_latest_release()
+            cache["last_check_ts"] = now
+            cache["latest_known"] = release["version"]
+            _save_check_cache(cache)
+        except UpdateError:
+            return
+
+    latest = cache.get("latest_known")
+    if latest and is_newer(latest, VERSION):
+        print(t("update.launch_hint", version=latest), file=sys.stderr)

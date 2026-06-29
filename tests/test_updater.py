@@ -1,3 +1,6 @@
+import contextlib
+import io
+import os
 import unittest
 import unittest.mock
 import hashlib
@@ -246,6 +249,55 @@ class ReplaceWindowsTest(unittest.TestCase):
             self.assertIn("4242", content)
             self.assertIn(str(target), content)
             popen.assert_called_once()
+
+
+class LaunchCheckTest(unittest.TestCase):
+    def test_skips_when_env_set(self):
+        with unittest.mock.patch.dict(os.environ, {"CCPROFILE_NO_UPDATE_CHECK": "1"}), \
+             unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
+             unittest.mock.patch.object(updater, "fetch_latest_release") as fetch:
+            updater.maybe_check_on_launch()
+        fetch.assert_not_called()
+
+    def test_skips_when_not_frozen(self):
+        with unittest.mock.patch.object(updater, "is_frozen", return_value=False), \
+             unittest.mock.patch.object(updater, "fetch_latest_release") as fetch:
+            updater.maybe_check_on_launch()
+        fetch.assert_not_called()
+
+    def test_prints_hint_when_cached_version_is_newer(self):
+        cache = {"last_check_ts": 0, "latest_known": "9.9.9"}  # 0 -> always re-check allowed
+        with unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
+             unittest.mock.patch.object(updater, "_load_check_cache", return_value=cache), \
+             unittest.mock.patch.object(updater, "_save_check_cache") as save, \
+             unittest.mock.patch.object(updater, "fetch_latest_release", return_value={"version": "9.9.9"}):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                updater.maybe_check_on_launch()
+        self.assertIn("9.9.9", err.getvalue())
+        save.assert_called_once()
+
+    def test_silent_when_up_to_date(self):
+        cache = {"last_check_ts": 0}
+        with unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
+             unittest.mock.patch.object(updater, "_load_check_cache", return_value=cache), \
+             unittest.mock.patch.object(updater, "_save_check_cache"), \
+             unittest.mock.patch.object(updater, "fetch_latest_release", return_value={"version": "0.0.1"}):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                updater.maybe_check_on_launch()
+        self.assertEqual(err.getvalue(), "")
+
+    def test_silent_on_network_error(self):
+        cache = {"last_check_ts": 0}
+        with unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
+             unittest.mock.patch.object(updater, "_load_check_cache", return_value=cache), \
+             unittest.mock.patch.object(updater, "_save_check_cache"), \
+             unittest.mock.patch.object(updater, "fetch_latest_release", side_effect=updater.UpdateError("net")):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                updater.maybe_check_on_launch()  # must not raise
+        self.assertEqual(err.getvalue(), "")
 
 
 if __name__ == "__main__":
