@@ -92,3 +92,70 @@ def should_check_now(cache, now_ts, interval=UPDATE_CHECK_INTERVAL):
     if last is None:
         return True
     return now_ts - last >= interval
+
+
+def _ssl_context():
+    """TLS context; prefer certifi's CA bundle (bundled in frozen builds)."""
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+def _http_get_json(url, timeout=10):
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": UPDATE_USER_AGENT,
+            "Accept": "application/vnd.github+json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
+            data = resp.read()
+        return json.loads(data.decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            raise RateLimitedError(t("update.err_rate_limited"))
+        raise UpdateError(t("update.err_network"))
+    except (urllib.error.URLError, json.JSONDecodeError, OSError):
+        raise UpdateError(t("update.err_network"))
+
+
+def _http_head_location(url, timeout=5):
+    """Follow the `releases/latest` redirect and read the tag from the final URL."""
+    req = urllib.request.Request(url, headers={"User-Agent": UPDATE_USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
+            final = resp.geturl()
+    except urllib.error.URLError:
+        raise UpdateError(t("update.err_network"))
+    return final.rstrip("/").rsplit("/", 1)[-1]
+
+
+def fetch_latest_release():
+    """Return latest release info, falling back to the redirect tag on rate limit."""
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+    try:
+        data = _http_get_json(api_url)
+    except RateLimitedError:
+        redirect_url = f"https://github.com/{GITHUB_REPO}/releases/latest"
+        try:
+            tag = _http_head_location(redirect_url)
+        except UpdateError:
+            raise RateLimitedError(t("update.err_rate_limited"))
+        version = tag[1:] if tag.startswith("v") else tag
+        return {"tag": tag, "version": version, "body": "", "assets": {}}
+
+    tag = data.get("tag_name", "")
+    version = tag[1:] if tag.startswith("v") else tag
+    body = data.get("body") or ""
+    assets = {}
+    for a in data.get("assets", []):
+        name = a.get("name")
+        url = a.get("browser_download_url")
+        if name and url:
+            assets[name] = url
+    return {"tag": tag, "version": version, "body": body, "assets": assets}

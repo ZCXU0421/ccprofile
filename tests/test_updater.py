@@ -85,5 +85,40 @@ class ShaAndThrottleTest(unittest.TestCase):
         )
 
 
+class FetchReleaseTest(unittest.TestCase):
+    def test_fetch_maps_api_response(self):
+        api_data = {
+            "tag_name": "v0.4.0",
+            "body": "changes",
+            "assets": [
+                {"name": "ccprofile-linux.tar.gz", "browser_download_url": "https://x/linux"},
+                {"name": "SHA256SUMS", "browser_download_url": "https://x/sums"},
+            ],
+        }
+        with unittest.mock.patch.object(updater, "_http_get_json", return_value=api_data):
+            rel = updater.fetch_latest_release()
+        self.assertEqual(rel["version"], "0.4.0")
+        self.assertEqual(rel["tag"], "v0.4.0")
+        self.assertEqual(rel["body"], "changes")
+        self.assertEqual(rel["assets"]["ccprofile-linux.tar.gz"], "https://x/linux")
+
+    def test_fetch_falls_back_on_rate_limit(self):
+        def fake_get(url, timeout=10):
+            raise updater.RateLimitedError("limited")
+
+        with unittest.mock.patch.object(updater, "_http_get_json", side_effect=fake_get), \
+             unittest.mock.patch.object(updater, "_http_head_location", return_value="v0.4.0"):
+            rel = updater.fetch_latest_release()
+        self.assertEqual(rel["version"], "0.4.0")
+        self.assertEqual(rel["assets"], {})
+
+    def test_fetch_propagates_network_error(self):
+        with unittest.mock.patch.object(
+            updater, "_http_get_json", side_effect=updater.UpdateError("net")
+        ):
+            with self.assertRaises(UpdateError):
+                updater.fetch_latest_release()
+
+
 if __name__ == "__main__":
     unittest.main()
