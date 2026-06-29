@@ -642,17 +642,18 @@ class ReplaceUnixTest(unittest.TestCase):
             bundle = install / "ccprofile"
             bundle.mkdir(parents=True)
             (bundle / "ccprofile").write_text("OLD")
-            new_bundle = work / "new" / "ccprofile"
-            new_bundle.mkdir(parents=True)
+
+            # A non-existent new bundle makes the second move fail for real,
+            # exercising the rollback path without mocking shutil.move.
+            missing_new = work / "does-not-exist" / "ccprofile"
 
             with unittest.mock.patch.object(updater, "_bundle_dir", return_value=bundle), \
-                 unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
-                 unittest.mock.patch.object(updater.shutil, "move", side_effect=["ok", OSError("boom")]):
-                # first shutil.move(target->backup) "ok", second move(new->target) fails
+                 unittest.mock.patch.object(updater, "is_frozen", return_value=True):
                 with self.assertRaises(UpdateError):
-                    updater.replace_bundle_unix(new_bundle)
-            # rolled back: original exe restored
+                    updater.replace_bundle_unix(missing_new)
+            # rolled back: original exe restored, backup cleaned up
             self.assertEqual((bundle / "ccprofile").read_text(), "OLD")
+            self.assertFalse((install / "ccprofile.old").exists())
 ```
 
 > 注：第二个用例里 `shutil.move` 的 `side_effect` 顺序对应「先移走旧 bundle、再移入新 bundle」，第二次抛错触发回滚。
@@ -838,6 +839,7 @@ git commit -m "feat(updater): 添加 Windows 脱机替换助手"
 ```python
 import contextlib
 import io
+import os
 
 
 class LaunchCheckTest(unittest.TestCase):
