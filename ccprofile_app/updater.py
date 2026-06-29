@@ -356,3 +356,96 @@ def maybe_check_on_launch():
     latest = cache.get("latest_known")
     if latest and is_newer(latest, VERSION):
         print(t("update.launch_hint", version=latest), file=sys.stderr)
+
+
+def cmd_update(args):
+    """Check for a newer release and update the installed bundle."""
+    check = getattr(args, "check", False)
+    yes = getattr(args, "yes", False)
+    force = getattr(args, "force", False)
+    prerelease = getattr(args, "prerelease", False)
+
+    print(t("update.checking"))
+    try:
+        release = fetch_latest_release()
+    except UpdateError as e:
+        print(str(e))
+        return
+
+    latest = release["version"]
+    print(kv(t("update.current"), VERSION))
+    print(kv(t("update.latest"), latest))
+
+    newer = is_newer(latest, VERSION, include_prerelease=prerelease)
+    if not newer and not force:
+        print(t("update.up_to_date"))
+        return
+
+    if newer:
+        print(f"{GREEN}{t('update.new_available')}{RESET}")
+
+    body = (release.get("body") or "").strip()
+    if body:
+        print(f"{BOLD}{t('update.changelog')}{RESET}")
+        for line in body.splitlines():
+            print(f"  {line}")
+
+    if check:
+        return
+
+    if not yes:
+        if not confirm_action(t("update.confirm", version=latest), default_yes=True):
+            print(t("update.canceled"))
+            return
+
+    if not is_frozen():
+        print(t("update.err_not_frozen"))
+        return
+
+    try:
+        asset_name = platform_asset()
+    except UpdateError as e:
+        print(str(e))
+        return
+
+    asset_url = release["assets"].get(asset_name)
+    if not asset_url:
+        asset_url = f"https://github.com/{GITHUB_REPO}/releases/latest/download/{asset_name}"
+    checksums_url = release["assets"].get(
+        "SHA256SUMS"
+    ) or f"https://github.com/{GITHUB_REPO}/releases/latest/download/SHA256SUMS"
+
+    tmpdir = Path(tempfile.mkdtemp(prefix="ccprofile-update-"))
+    new_bundle = None
+    try:
+        asset_path = tmpdir / asset_name
+        sums_path = tmpdir / "SHA256SUMS"
+        print(t("update.downloading", asset=asset_name))
+        download_to(asset_url, asset_path)
+        download_to(checksums_url, sums_path)
+        print(t("update.verifying"))
+        expected = expected_sha256(asset_name, sums_path.read_text("utf-8"))
+        if not expected:
+            print(t("update.err_checksum_missing"))
+            return
+        if not verify_sha256(asset_path, expected):
+            print(t("update.err_checksum"))
+            return
+        print(t("update.extracting"))
+        new_bundle = extract_bundle(asset_path, tmpdir / "extracted")
+    except UpdateError as e:
+        print(str(e))
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return
+
+    try:
+        if sys.platform == "win32":
+            replace_bundle_windows(new_bundle)
+            print(t("update.success_windows"))
+        else:
+            replace_bundle_unix(new_bundle)
+            print(t("update.success_unix", version=latest))
+    except UpdateError as e:
+        print(str(e))
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)

@@ -9,6 +9,7 @@ import sys
 import tarfile
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 from ccprofile_app import updater
 from ccprofile_app.updater import UpdateError, is_newer, parse_version
@@ -298,6 +299,93 @@ class LaunchCheckTest(unittest.TestCase):
             with contextlib.redirect_stderr(err):
                 updater.maybe_check_on_launch()  # must not raise
         self.assertEqual(err.getvalue(), "")
+
+
+class CmdUpdateTest(unittest.TestCase):
+    def _upd_args(self, **kw):
+        base = dict(check=False, yes=False, force=False, prerelease=False)
+        base.update(kw)
+        return SimpleNamespace(**base)
+
+    def _patches(self, **overrides):
+        defaults = dict(
+            fetch_latest_release=unittest.mock.DEFAULT,
+            download_to=unittest.mock.DEFAULT,
+            expected_sha256=unittest.mock.DEFAULT,
+            verify_sha256=unittest.mock.DEFAULT,
+            extract_bundle=unittest.mock.DEFAULT,
+            replace_bundle_unix=unittest.mock.DEFAULT,
+            replace_bundle_windows=unittest.mock.DEFAULT,
+            is_frozen=unittest.mock.DEFAULT,
+            platform_asset=unittest.mock.DEFAULT,
+            confirm_action=unittest.mock.DEFAULT,
+        )
+        defaults.update(overrides)
+        patches = []
+        for k, v in defaults.items():
+            if v is not unittest.mock.DEFAULT and not isinstance(v, unittest.mock.Mock):
+                mock = unittest.mock.MagicMock(side_effect=v)
+                patches.append(unittest.mock.patch.object(updater, k, mock))
+            else:
+                patches.append(unittest.mock.patch.object(updater, k, v))
+        return patches
+
+    def test_up_to_date_does_not_download(self):
+        with unittest.mock.patch.object(updater, "VERSION", "0.9.0"):
+            for p in self._patches(
+                fetch_latest_release=lambda: {"version": "0.9.0", "body": "", "assets": {}}
+            ):
+                p.start()
+            self.addCleanup(unittest.mock.patch.stopall)
+            updater.cmd_update(self._upd_args())
+        updater.download_to.assert_not_called()
+
+    def test_check_only_does_not_replace(self):
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.0"):
+            for p in self._patches(
+                fetch_latest_release=lambda: {"version": "0.4.0", "body": "x", "assets": {}}
+            ):
+                p.start()
+            self.addCleanup(unittest.mock.patch.stopall)
+            updater.cmd_update(self._upd_args(check=True))
+        updater.replace_bundle_unix.assert_not_called()
+
+    def test_yes_updates_on_unix(self):
+        def fake_download(url, dest, timeout=30):
+            Path(dest).write_bytes(b"data")
+
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.0"), \
+             unittest.mock.patch.object(sys, "platform", "linux"):
+            for p in self._patches(
+                fetch_latest_release=lambda: {
+                    "version": "0.4.0", "body": "x",
+                    "assets": {"ccprofile-linux.tar.gz": "u", "SHA256SUMS": "s"},
+                },
+                download_to=fake_download,
+                platform_asset=lambda: "ccprofile-linux.tar.gz",
+                expected_sha256=lambda name, text: "abc",
+                verify_sha256=lambda path, expected: True,
+                extract_bundle=lambda a, d: Path(str(a)),
+            ):
+                p.start()
+            self.addCleanup(unittest.mock.patch.stopall)
+            updater.cmd_update(self._upd_args(yes=True))
+        updater.download_to.assert_called()
+        updater.replace_bundle_unix.assert_called_once()
+        updater.replace_bundle_windows.assert_not_called()
+
+    def test_not_frozen_aborts_before_replace(self):
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.0"):
+            for p in self._patches(
+                fetch_latest_release=lambda: {"version": "0.4.0", "body": "", "assets": {}},
+                is_frozen=lambda: False,
+                verify_sha256=lambda path, expected: True,
+                extract_bundle=lambda a, d: Path(str(a)),
+            ):
+                p.start()
+            self.addCleanup(unittest.mock.patch.stopall)
+            updater.cmd_update(self._upd_args(yes=True))
+        updater.replace_bundle_unix.assert_not_called()
 
 
 if __name__ == "__main__":
