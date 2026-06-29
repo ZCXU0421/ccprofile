@@ -173,8 +173,22 @@ def _safe_tar_extract(tar, dest_dir):
     tar.extractall(dest)
 
 
+def _safe_zip_extract(zf, dest_dir):
+    """Extract a zip rejecting path-traversal members."""
+    dest = Path(dest_dir).resolve()
+    for member in zf.infolist():
+        member_dest = (dest / member.filename).resolve()
+        try:
+            member_dest.relative_to(dest)
+        except ValueError:
+            raise UpdateError(t("update.err_extract"))
+    zf.extractall(dest)
+
+
 def download_to(url, dest, timeout=30):
     """Stream `url` to `dest` (a path). Raises UpdateError on failure."""
+    if not url.startswith("https://"):
+        raise UpdateError(t("update.err_network"))
     req = urllib.request.Request(url, headers={"User-Agent": UPDATE_USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
@@ -202,11 +216,17 @@ def extract_bundle(archive_path, dest_dir):
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
     if archive_path.suffix == ".zip":
-        with zipfile.ZipFile(archive_path) as zf:
-            zf.extractall(dest_dir)
+        try:
+            with zipfile.ZipFile(archive_path) as zf:
+                _safe_zip_extract(zf, dest_dir)
+        except (zipfile.BadZipFile, OSError):
+            raise UpdateError(t("update.err_extract"))
     else:
-        with tarfile.open(archive_path, "r:gz") as tar:
-            _safe_tar_extract(tar, dest_dir)
+        try:
+            with tarfile.open(archive_path, "r:gz") as tar:
+                _safe_tar_extract(tar, dest_dir)
+        except (tarfile.TarError, OSError):
+            raise UpdateError(t("update.err_extract"))
     bundle = dest_dir / "ccprofile"
     exe_name = "ccprofile.exe" if sys.platform == "win32" else "ccprofile"
     if not (bundle / exe_name).exists():

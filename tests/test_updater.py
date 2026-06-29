@@ -163,6 +163,19 @@ class DownloadVerifyExtractTest(unittest.TestCase):
             with self.assertRaises(UpdateError):
                 updater.extract_bundle(archive, work / "extracted")
 
+    def test_extract_zip_rejects_traversal(self):
+        import io, zipfile as zf
+        bad = io.BytesIO()
+        with zf.ZipFile(bad, "w") as z:
+            z.writestr("../evil.txt", "pwn")
+        with tempfile.TemporaryDirectory() as work:
+            archive = Path(work) / "bundle.zip"
+            archive.write_bytes(bad.getvalue())
+            with self.assertRaises(UpdateError):
+                updater.extract_bundle(archive, Path(work) / "extracted")
+            # nothing escaped
+            self.assertFalse((Path(work).parent / "evil.txt").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
