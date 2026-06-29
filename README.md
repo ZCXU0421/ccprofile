@@ -400,7 +400,7 @@ python build.py
 
 打包产物为 PyInstaller onedir 目录：`dist/ccprofile/`，可执行入口在 `dist/ccprofile/ccprofile`。发布或本地安装时需要保留整个目录。
 
-GitHub Release 会把该目录打包为 `ccprofile-macos-arm64.tar.gz`、`ccprofile-macos-intel.tar.gz`、`ccprofile-linux.tar.gz` 或 `ccprofile-windows.zip`。不要只发布或下载目录中的单个可执行文件。
+GitHub Release 会把该目录打包为 `ccprofile-macos-arm64.tar.gz`、`ccprofile-linux.tar.gz` 或 `ccprofile-windows.zip`。不再支持 Intel Mac。请勿只发布或下载目录中的单个可执行文件。
 
 依赖：
 
