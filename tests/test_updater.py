@@ -1,7 +1,11 @@
 import unittest
 import unittest.mock
+import hashlib
 import platform
 import sys
+import tarfile
+import tempfile
+from pathlib import Path
 
 from ccprofile_app import updater
 from ccprofile_app.updater import UpdateError, is_newer, parse_version
@@ -118,6 +122,46 @@ class FetchReleaseTest(unittest.TestCase):
         ):
             with self.assertRaises(UpdateError):
                 updater.fetch_latest_release()
+
+
+class DownloadVerifyExtractTest(unittest.TestCase):
+    def test_verify_sha256_match(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "f"
+            p.write_bytes(b"hello")
+            digest = hashlib.sha256(b"hello").hexdigest()
+            self.assertTrue(updater.verify_sha256(p, digest))
+
+    def test_verify_sha256_mismatch(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "f"
+            p.write_bytes(b"hello")
+            self.assertFalse(updater.verify_sha256(p, "0" * 64))
+
+    def test_extract_bundle_tar(self):
+        with tempfile.TemporaryDirectory() as work:
+            work = Path(work)
+            # build a tar.gz with layout ccprofile/ccprofile
+            src = work / "ccprofile"
+            src.mkdir()
+            (src / "ccprofile").write_text("exe")
+            archive = work / "bundle.tar.gz"
+            with tarfile.open(archive, "w:gz") as tar:
+                tar.add(src, arcname="ccprofile")
+            out = work / "extracted"
+            bundle = updater.extract_bundle(archive, out)
+            self.assertTrue((bundle / "ccprofile").exists())
+            self.assertEqual(bundle.name, "ccprofile")
+
+    def test_extract_bundle_bad_layout_raises(self):
+        with tempfile.TemporaryDirectory() as work:
+            work = Path(work)
+            (work / "other").mkdir()
+            archive = work / "bundle.tar.gz"
+            with tarfile.open(archive, "w:gz") as tar:
+                tar.add(work / "other", arcname="other")
+            with self.assertRaises(UpdateError):
+                updater.extract_bundle(archive, work / "extracted")
 
 
 if __name__ == "__main__":

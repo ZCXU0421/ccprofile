@@ -159,3 +159,56 @@ def fetch_latest_release():
         if name and url:
             assets[name] = url
     return {"tag": tag, "version": version, "body": body, "assets": assets}
+
+
+def _safe_tar_extract(tar, dest_dir):
+    """Extract a tar rejecting path-traversal members."""
+    dest = Path(dest_dir).resolve()
+    for member in tar.getmembers():
+        member_dest = (dest / member.name).resolve()
+        try:
+            member_dest.relative_to(dest)
+        except ValueError:
+            raise UpdateError(t("update.err_extract"))
+    tar.extractall(dest)
+
+
+def download_to(url, dest, timeout=30):
+    """Stream `url` to `dest` (a path). Raises UpdateError on failure."""
+    req = urllib.request.Request(url, headers={"User-Agent": UPDATE_USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
+            with open(dest, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError):
+        raise UpdateError(t("update.err_network"))
+
+
+def verify_sha256(path, expected):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest().lower() == expected.lower()
+
+
+def extract_bundle(archive_path, dest_dir):
+    """Extract the release archive; return the inner `ccprofile/` directory."""
+    archive_path = Path(archive_path)
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    if archive_path.suffix == ".zip":
+        with zipfile.ZipFile(archive_path) as zf:
+            zf.extractall(dest_dir)
+    else:
+        with tarfile.open(archive_path, "r:gz") as tar:
+            _safe_tar_extract(tar, dest_dir)
+    bundle = dest_dir / "ccprofile"
+    exe_name = "ccprofile.exe" if sys.platform == "win32" else "ccprofile"
+    if not (bundle / exe_name).exists():
+        raise UpdateError(t("update.err_extract"))
+    return bundle
