@@ -25,7 +25,7 @@ from .constants import (
     UPDATE_USER_AGENT,
     VERSION,
 )
-from .display import BOLD, CYAN, GREEN, RESET, kv, panel
+from .display import BOLD, GREEN, RESET, kv
 from .i18n import t
 from .terminal import confirm_action
 
@@ -87,7 +87,7 @@ def expected_sha256(asset_name, text):
 
 
 def should_check_now(cache, now_ts, interval=UPDATE_CHECK_INTERVAL):
-    """Return True if a new network check is allowed (> interval since last)."""
+    """Return True if a new network check is allowed (interval or more since last)."""
     last = cache.get("last_check_ts")
     if last is None:
         return True
@@ -292,7 +292,10 @@ def replace_bundle_windows(new_bundle_dir):
         "    timeout /t 1 >nul",
         "    goto wait",
         ")",
+        "set /a tries=0",
         ":replace",
+        "set /a tries+=1",
+        "if %tries% gtr 30 goto giveup",
         f'rmdir /s /q "{target}"',
         f'if exist "{target}" (',
         "    timeout /t 1 >nul",
@@ -303,8 +306,12 @@ def replace_bundle_windows(new_bundle_dir):
         "    timeout /t 2 >nul",
         "    goto replace",
         ")",
+        ":done",
         f'rmdir /s /q "{staging_parent}"',
         'del "%~f0"',
+        ":giveup",
+        f'echo ccprofile update failed after %tries% attempts > "{staging_parent}\\UPDATE_FAILED.txt"',
+        "exit /b 1",
     ]
     bat_path.write_text("\r\n".join(lines), encoding="utf-8")
 

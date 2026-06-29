@@ -249,6 +249,8 @@ class ReplaceWindowsTest(unittest.TestCase):
             content = bat.read_text("utf-8")
             self.assertIn("4242", content)
             self.assertIn(str(target), content)
+            self.assertIn("tries", content)
+            self.assertIn("giveup", content)
             popen.assert_called_once()
 
 
