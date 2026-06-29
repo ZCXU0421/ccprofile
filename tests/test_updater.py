@@ -61,5 +61,29 @@ class PlatformAssetTest(unittest.TestCase):
             self.assertEqual(updater.platform_asset(), "ccprofile-windows.zip")
 
 
+class ShaAndThrottleTest(unittest.TestCase):
+    def test_expected_sha256_found(self):
+        text = "abc123  ccprofile-linux.tar.gz\nffff  other.zip\n"
+        self.assertEqual(
+            updater.expected_sha256("ccprofile-linux.tar.gz", text), "abc123"
+        )
+
+    def test_expected_sha256_missing(self):
+        self.assertIsNone(updater.expected_sha256("nope.zip", "abc123  other.zip\n"))
+
+    def test_should_check_when_never_checked(self):
+        self.assertTrue(updater.should_check_now({}, now_ts=1000))
+
+    def test_should_not_check_within_interval(self):
+        cache = {"last_check_ts": 1000}
+        self.assertFalse(updater.should_check_now(cache, now_ts=1000 + 100))
+
+    def test_should_check_after_interval(self):
+        cache = {"last_check_ts": 1000}
+        self.assertTrue(
+            updater.should_check_now(cache, now_ts=1000 + updater.UPDATE_CHECK_INTERVAL)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

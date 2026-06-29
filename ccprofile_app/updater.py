@@ -75,3 +75,20 @@ def platform_asset():
     if sys.platform == "win32":
         return "ccprofile-windows.zip"
     raise UpdateError(t("update.err_unsupported"))
+
+
+def expected_sha256(asset_name, text):
+    """Return the expected SHA256 hex for `asset_name` parsed from SHA256SUMS text."""
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[-1] == asset_name:
+            return parts[0].lower()
+    return None
+
+
+def should_check_now(cache, now_ts, interval=UPDATE_CHECK_INTERVAL):
+    """Return True if a new network check is allowed (> interval since last)."""
+    last = cache.get("last_check_ts")
+    if last is None:
+        return True
+    return now_ts - last >= interval
