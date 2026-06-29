@@ -222,5 +222,31 @@ class ReplaceUnixTest(unittest.TestCase):
             self.assertFalse((install / "ccprofile.old").exists())
 
 
+class ReplaceWindowsTest(unittest.TestCase):
+    def test_writes_bat_and_spawns_detached(self):
+        with tempfile.TemporaryDirectory() as work:
+            work = Path(work)
+            new_bundle = work / "new" / "ccprofile"
+            new_bundle.mkdir(parents=True)
+            (new_bundle / "ccprofile.exe").write_text("NEW")
+
+            target = work / "target" / "ccprofile"
+
+            with unittest.mock.patch.object(updater, "_bundle_dir", return_value=target), \
+                 unittest.mock.patch.object(updater.tempfile, "gettempdir", return_value=str(work)), \
+                 unittest.mock.patch.object(updater.os, "getpid", return_value=4242), \
+                 unittest.mock.patch.object(updater.subprocess, "Popen") as popen:
+                updater.replace_bundle_windows(new_bundle)
+
+            staging_parent = work / "ccprofile-update-4242"
+            self.assertTrue((staging_parent / "ccprofile" / "ccprofile.exe").exists())
+            bat = staging_parent.with_suffix(".bat")
+            self.assertTrue(bat.exists())
+            content = bat.read_text("utf-8")
+            self.assertIn("4242", content)
+            self.assertIn(str(target), content)
+            popen.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

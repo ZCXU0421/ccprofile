@@ -264,3 +264,55 @@ def replace_bundle_unix(new_bundle_dir):
         shutil.move(str(backup), str(target))
         raise UpdateError(t("update.err_install"))
     shutil.rmtree(backup, ignore_errors=True)
+
+
+def replace_bundle_windows(new_bundle_dir):
+    """Stage the new bundle and spawn a detached .bat to swap after we exit.
+
+    Windows locks the running .exe + _internal DLLs, so the actual file
+    replacement happens once this process has terminated.
+    """
+    new_bundle_dir = Path(new_bundle_dir)
+    pid = os.getpid()
+    staging_parent = Path(tempfile.gettempdir()) / f"ccprofile-update-{pid}"
+    staging_bundle = staging_parent / "ccprofile"
+    if staging_parent.exists():
+        shutil.rmtree(staging_parent, ignore_errors=True)
+    staging_parent.mkdir(parents=True)
+    shutil.move(str(new_bundle_dir), str(staging_bundle))
+
+    target = _bundle_dir()
+    bat_path = staging_parent.with_suffix(".bat")
+    lines = [
+        "@echo off",
+        "chcp 65001 >nul",
+        ":wait",
+        f'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul',
+        "if %ERRORLEVEL% equ 0 (",
+        "    timeout /t 1 >nul",
+        "    goto wait",
+        ")",
+        ":replace",
+        f'rmdir /s /q "{target}"',
+        f'if exist "{target}" (',
+        "    timeout /t 1 >nul",
+        "    goto replace",
+        ")",
+        f'move /y "{staging_bundle}" "{target}" >nul',
+        f'if not exist "{target}\\ccprofile.exe" (',
+        "    timeout /t 2 >nul",
+        "    goto replace",
+        ")",
+        f'rmdir /s /q "{staging_parent}"',
+        'del "%~f0"',
+    ]
+    bat_path.write_text("\r\n".join(lines), encoding="utf-8")
+
+    creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
+        subprocess, "DETACHED_PROCESS", 0
+    )
+    subprocess.Popen(
+        ["cmd", "/c", "start", "/b", str(bat_path)],
+        creationflags=creationflags,
+        close_fds=True,
+    )
