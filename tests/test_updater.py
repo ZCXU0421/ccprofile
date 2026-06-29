@@ -251,6 +251,10 @@ class ReplaceWindowsTest(unittest.TestCase):
             self.assertIn(str(target), content)
             self.assertIn("tries", content)
             self.assertIn("giveup", content)
+            # success path must jump past :giveup so a successful replace
+            # never writes the failure marker / exits 1
+            self.assertIn("goto done", content)
+            self.assertLess(content.index("goto done"), content.index(":giveup"))
             popen.assert_called_once()
 
 

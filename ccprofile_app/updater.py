@@ -306,12 +306,13 @@ def replace_bundle_windows(new_bundle_dir):
         "    timeout /t 2 >nul",
         "    goto replace",
         ")",
-        ":done",
-        f'rmdir /s /q "{staging_parent}"',
-        'del "%~f0"',
+        "goto done",
         ":giveup",
         f'echo ccprofile update failed after %tries% attempts > "{staging_parent}\\UPDATE_FAILED.txt"',
         "exit /b 1",
+        ":done",
+        f'rmdir /s /q "{staging_parent}"',
+        'del "%~f0"',
     ]
     bat_path.write_text("\r\n".join(lines), encoding="utf-8")
 
