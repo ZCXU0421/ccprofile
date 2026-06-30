@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 CLAUDE_DIR = Path.home() / ".claude"
 PROFILE_DIR = Path.home() / ".ccprofile"
