@@ -31,6 +31,8 @@ REQUIRED_UPDATE_KEYS = [
     "update.err_rate_limited",
     "update.err_checksum",
     "update.err_checksum_missing",
+    "update.err_asset_missing",
+    "update.err_downgrade",
     "update.err_not_frozen",
     "update.err_unsupported",
     "update.err_extract",

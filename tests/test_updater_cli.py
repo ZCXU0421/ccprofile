@@ -22,17 +22,32 @@ class CliWiringTest(unittest.TestCase):
         self.assertTrue(ns.prerelease)
         self.assertEqual(ns.command, "update")
 
-    def test_main_dispatches_update_and_runs_launch_check(self):
+    def test_main_dispatches_update_skipping_background_check(self):
         from ccprofile_app import cli
 
         with unittest.mock.patch("sys.argv", ["ccprofile", "update", "-y"]), \
              unittest.mock.patch.object(cli, "cmd_update") as cmd, \
              unittest.mock.patch.object(cli, "migrate_from_legacy"), \
-             unittest.mock.patch.object(cli, "maybe_check_on_launch") as launch:
+             unittest.mock.patch.object(cli, "maybe_check_on_launch") as launch, \
+             unittest.mock.patch.object(cli, "emit_launch_hint") as emit:
             cli.main()
         cmd.assert_called_once()
         self.assertTrue(cmd.call_args.args[0].yes)
+        # the update subcommand does its own fetch; skip the background check
+        launch.assert_not_called()
+        emit.assert_called_once()  # exit hint still emitted (muted by _updated_this_run)
+
+    def test_main_runs_background_check_for_other_commands(self):
+        from ccprofile_app import cli
+
+        with unittest.mock.patch("sys.argv", ["ccprofile", "current"]), \
+             unittest.mock.patch.object(cli, "cmd_current"), \
+             unittest.mock.patch.object(cli, "migrate_from_legacy"), \
+             unittest.mock.patch.object(cli, "maybe_check_on_launch") as launch, \
+             unittest.mock.patch.object(cli, "emit_launch_hint") as emit:
+            cli.main()
         launch.assert_called_once()
+        emit.assert_called_once()
 
 
 if __name__ == "__main__":

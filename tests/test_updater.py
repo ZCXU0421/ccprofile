@@ -259,52 +259,87 @@ class ReplaceWindowsTest(unittest.TestCase):
 
 
 class LaunchCheckTest(unittest.TestCase):
-    def test_skips_when_env_set(self):
+    def setUp(self):
+        # Reset the launch-check module state so assertions are independent of
+        # test execution order.
+        updater._updated_this_run = False
+        updater._launch_check_started = False
+        updater._bg_latest = None
+
+    def test_kickoff_skips_when_env_set(self):
         with unittest.mock.patch.dict(os.environ, {"CCPROFILE_NO_UPDATE_CHECK": "1"}), \
              unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
-             unittest.mock.patch.object(updater, "fetch_latest_release") as fetch:
+             unittest.mock.patch.object(updater, "_launch_check_worker") as worker, \
+             unittest.mock.patch.object(updater.threading, "Thread") as thread:
             updater.maybe_check_on_launch()
-        fetch.assert_not_called()
+        worker.assert_not_called()
+        thread.assert_not_called()
 
-    def test_skips_when_not_frozen(self):
+    def test_kickoff_skips_when_not_frozen(self):
         with unittest.mock.patch.object(updater, "is_frozen", return_value=False), \
-             unittest.mock.patch.object(updater, "fetch_latest_release") as fetch:
+             unittest.mock.patch.object(updater, "_launch_check_worker"), \
+             unittest.mock.patch.object(updater.threading, "Thread") as thread:
             updater.maybe_check_on_launch()
-        fetch.assert_not_called()
+        thread.assert_not_called()
 
-    def test_prints_hint_when_cached_version_is_newer(self):
-        cache = {"last_check_ts": 0, "latest_known": "9.9.9"}  # 0 -> always re-check allowed
+    def test_kickoff_starts_at_most_one_thread(self):
         with unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
-             unittest.mock.patch.object(updater, "_load_check_cache", return_value=cache), \
+             unittest.mock.patch.object(updater, "_launch_check_worker"), \
+             unittest.mock.patch.object(updater.threading, "Thread") as thread:
+            updater.maybe_check_on_launch()
+            updater.maybe_check_on_launch()  # idempotent within a process
+        thread.assert_called_once()
+
+    def test_worker_fetches_and_caches(self):
+        cache = {"last_check_ts": 0}  # 0 -> re-check always allowed
+        with unittest.mock.patch.object(updater, "_load_check_cache", return_value=cache), \
              unittest.mock.patch.object(updater, "_save_check_cache") as save, \
              unittest.mock.patch.object(updater, "fetch_latest_release", return_value={"version": "9.9.9"}):
-            err = io.StringIO()
-            with contextlib.redirect_stderr(err):
-                updater.maybe_check_on_launch()
-        self.assertIn("9.9.9", err.getvalue())
+            updater._launch_check_worker()
+        self.assertEqual(updater._bg_latest, "9.9.9")
         save.assert_called_once()
 
-    def test_silent_when_up_to_date(self):
-        cache = {"last_check_ts": 0}
-        with unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
-             unittest.mock.patch.object(updater, "_load_check_cache", return_value=cache), \
-             unittest.mock.patch.object(updater, "_save_check_cache"), \
-             unittest.mock.patch.object(updater, "fetch_latest_release", return_value={"version": "0.0.1"}):
-            err = io.StringIO()
-            with contextlib.redirect_stderr(err):
-                updater.maybe_check_on_launch()
-        self.assertEqual(err.getvalue(), "")
-
-    def test_silent_on_network_error(self):
-        cache = {"last_check_ts": 0}
-        with unittest.mock.patch.object(updater, "is_frozen", return_value=True), \
-             unittest.mock.patch.object(updater, "_load_check_cache", return_value=cache), \
+    def test_worker_keeps_cached_hint_on_network_error(self):
+        # A transient fetch failure must not discard an already-cached hint.
+        cache = {"last_check_ts": 0, "latest_known": "9.9.9"}
+        with unittest.mock.patch.object(updater, "_load_check_cache", return_value=cache), \
              unittest.mock.patch.object(updater, "_save_check_cache"), \
              unittest.mock.patch.object(updater, "fetch_latest_release", side_effect=updater.UpdateError("net")):
+            updater._launch_check_worker()  # must not raise
+        self.assertEqual(updater._bg_latest, "9.9.9")
+
+    def test_emit_hint_shows_newer(self):
+        updater._bg_latest = "9.9.9"
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.0"):
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
-                updater.maybe_check_on_launch()  # must not raise
+                updater.emit_launch_hint()
+        self.assertIn("9.9.9", err.getvalue())
+
+    def test_emit_hint_silent_when_up_to_date(self):
+        updater._bg_latest = "0.0.1"
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.0"):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                updater.emit_launch_hint()
         self.assertEqual(err.getvalue(), "")
+
+    def test_emit_hint_suppressed_after_update(self):
+        updater._updated_this_run = True
+        updater._bg_latest = "9.9.9"
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            updater.emit_launch_hint()
+        self.assertEqual(err.getvalue(), "")
+
+    def test_emit_hint_falls_back_to_cache(self):
+        # _bg_latest still None (worker hasn't finished) -> read the cache.
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.0"), \
+             unittest.mock.patch.object(updater, "_load_check_cache", return_value={"latest_known": "9.9.9"}):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                updater.emit_launch_hint()
+        self.assertIn("9.9.9", err.getvalue())
 
 
 class CmdUpdateTest(unittest.TestCase):
@@ -339,7 +374,7 @@ class CmdUpdateTest(unittest.TestCase):
     def test_up_to_date_does_not_download(self):
         with unittest.mock.patch.object(updater, "VERSION", "0.9.0"):
             for p in self._patches(
-                fetch_latest_release=lambda: {"version": "0.9.0", "body": "", "assets": {}}
+                fetch_latest_release=lambda include_prerelease=False: {"version": "0.9.0", "body": "", "assets": {}}
             ):
                 p.start()
             self.addCleanup(unittest.mock.patch.stopall)
@@ -349,7 +384,7 @@ class CmdUpdateTest(unittest.TestCase):
     def test_check_only_does_not_replace(self):
         with unittest.mock.patch.object(updater, "VERSION", "0.3.0"):
             for p in self._patches(
-                fetch_latest_release=lambda: {"version": "0.4.0", "body": "x", "assets": {}}
+                fetch_latest_release=lambda include_prerelease=False: {"version": "0.4.0", "body": "x", "assets": {}}
             ):
                 p.start()
             self.addCleanup(unittest.mock.patch.stopall)
@@ -363,7 +398,7 @@ class CmdUpdateTest(unittest.TestCase):
         with unittest.mock.patch.object(updater, "VERSION", "0.3.0"), \
              unittest.mock.patch.object(sys, "platform", "linux"):
             for p in self._patches(
-                fetch_latest_release=lambda: {
+                fetch_latest_release=lambda include_prerelease=False: {
                     "version": "0.4.0", "body": "x",
                     "assets": {"ccprofile-linux.tar.gz": "u", "SHA256SUMS": "s"},
                 },
@@ -383,7 +418,7 @@ class CmdUpdateTest(unittest.TestCase):
     def test_not_frozen_aborts_before_replace(self):
         with unittest.mock.patch.object(updater, "VERSION", "0.3.0"):
             for p in self._patches(
-                fetch_latest_release=lambda: {"version": "0.4.0", "body": "", "assets": {}},
+                fetch_latest_release=lambda include_prerelease=False: {"version": "0.4.0", "body": "", "assets": {}},
                 is_frozen=lambda: False,
                 verify_sha256=lambda path, expected: True,
                 extract_bundle=lambda a, d: Path(str(a)),
@@ -392,6 +427,62 @@ class CmdUpdateTest(unittest.TestCase):
             self.addCleanup(unittest.mock.patch.stopall)
             updater.cmd_update(self._upd_args(yes=True))
         updater.replace_bundle_unix.assert_not_called()
+
+    def test_force_refuses_downgrade(self):
+        with unittest.mock.patch.object(updater, "VERSION", "1.0.0"):
+            for p in self._patches(
+                fetch_latest_release=lambda include_prerelease=False: {"version": "0.9.0", "body": "", "assets": {}},
+            ):
+                p.start()
+            self.addCleanup(unittest.mock.patch.stopall)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                updater.cmd_update(self._upd_args(yes=True, force=True))
+        updater.download_to.assert_not_called()
+        self.assertIn("降级", out.getvalue())
+
+    def test_force_reinstalls_same_version(self):
+        def fake_download(url, dest, timeout=30):
+            Path(dest).write_bytes(b"data")
+
+        with unittest.mock.patch.object(updater, "VERSION", "0.4.0"), \
+             unittest.mock.patch.object(sys, "platform", "linux"):
+            for p in self._patches(
+                fetch_latest_release=lambda include_prerelease=False: {
+                    "version": "0.4.0", "body": "",
+                    "assets": {"ccprofile-linux.tar.gz": "u", "SHA256SUMS": "s"},
+                },
+                download_to=fake_download,
+                platform_asset=lambda: "ccprofile-linux.tar.gz",
+                expected_sha256=lambda name, text: "abc",
+                verify_sha256=lambda path, expected: True,
+                extract_bundle=lambda a, d: Path(str(a)),
+            ):
+                p.start()
+            self.addCleanup(unittest.mock.patch.stopall)
+            updater.cmd_update(self._upd_args(yes=True, force=True))
+        updater.replace_bundle_unix.assert_called_once()
+
+    def test_clear_error_when_asset_not_in_release(self):
+        # API populated assets dict but our platform asset is missing -> clear
+        # error, no guessed URL / download attempt.
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.0"), \
+             unittest.mock.patch.object(sys, "platform", "linux"):
+            for p in self._patches(
+                fetch_latest_release=lambda include_prerelease=False: {
+                    "version": "0.4.0", "body": "",
+                    "assets": {"some-other-asset.tar.gz": "u"},
+                },
+                is_frozen=lambda: True,
+                platform_asset=lambda: "ccprofile-linux.tar.gz",
+            ):
+                p.start()
+            self.addCleanup(unittest.mock.patch.stopall)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                updater.cmd_update(self._upd_args(yes=True))
+        updater.download_to.assert_not_called()
+        self.assertIn("ccprofile-linux.tar.gz", out.getvalue())
 
 
 if __name__ == "__main__":

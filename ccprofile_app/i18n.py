@@ -766,6 +766,8 @@ STRINGS = {
     "update.err_rate_limited": {"zh": "错误: GitHub API 限流，请稍后再试。", "en": "Error: GitHub API rate-limited. Try again later."},
     "update.err_checksum": {"zh": "错误: SHA256 校验失败，已中止。", "en": "Error: SHA256 verification failed. Aborted."},
     "update.err_checksum_missing": {"zh": "错误: 未找到该资产的校验值。", "en": "Error: No checksum found for the asset."},
+    "update.err_asset_missing": {"zh": "错误: 未找到适用于本平台的资产 {asset}。", "en": "Error: No release asset found for this platform ({asset})."},
+    "update.err_downgrade": {"zh": "错误: 当前版本 {current} 已高于最新可用版本 {latest}，拒绝降级。", "en": "Error: Current version {current} is newer than the latest available {latest}; refusing to downgrade."},
     "update.err_not_frozen": {"zh": "源码运行模式无法自更新。请用 git pull 或安装正式版。", "en": "Running from source; use git pull or install a release."},
     "update.err_unsupported": {"zh": "错误: 不支持的平台（Intel Mac 已停止支持）。", "en": "Error: Unsupported platform (Intel Mac is no longer supported)."},
     "update.err_extract": {"zh": "错误: 安装包解压失败或布局不符。", "en": "Error: Failed to extract or invalid archive layout."},
