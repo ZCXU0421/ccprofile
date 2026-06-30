@@ -51,6 +51,18 @@ No build system, no tests, no linter configured.
 
 `init`, `add`, `switch`, `list`, `show`, `edit`, `delete`, `current` — see README.md for full usage.
 
+## 发布流程 (Release)
+
+**发布新版本时,「升版本号 + 合并」只是开始——必须同时打 tag 和发 GitHub Release,缺一不可。** 完整步骤:
+
+1. **升版本号**:改 `ccprofile_app/constants.py` 的 `VERSION`(版本号唯一来源),确认 `PYTHONPATH="$PWD" python3 -m pytest` 全绿。
+2. **提交并合并**:新建分支 → 提交 → 推送 → 开 PR → 合并到 `main`。
+   - `main` 受分支保护(要求 review,且作者无法自审)。以 owner 身份合并:`gh pr merge <PR号> --admin --merge --delete-branch`。
+3. **打 tag**:在 `main` 上打**带注释**标签,版本号须与 `VERSION` 一致:`git tag -a vX.Y.Z -m "release vX.Y.Z"` → `git push origin vX.Y.Z`。
+4. **发 GitHub Release**:`gh release create vX.Y.Z --target main --title "vX.Y.Z" --notes "..."`(notes 概述本次修复/特性,引用 PR)。
+
+环境备忘:远端走 HTTPS + `gh` 凭据(本机 SSH 22 端口超时)。如需切回 SSH:`git remote set-url origin git@github.com:ZCXU0421/ccprofile.git`。
+
 ## Language
 
 User-facing output and README are in Chinese (中文). Code comments and identifiers are in English.
