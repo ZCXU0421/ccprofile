@@ -496,32 +496,13 @@ class SyncTest(unittest.TestCase):
         printed = "\n".join(str(call.args[0]) for call in print_mock.call_args_list if call.args)
         self.assertIn(sync.t("sync.config_saved_no_salt"), printed)
 
-    def test_cmd_sync_config_rotates_remote_salt_and_reencrypts_remote_data(self):
+class SyncMultiDeviceTest(unittest.TestCase):
+    """多设备同步场景:第二台设备配置时必须「加入」而非「轮换」远端盐值。"""
+
+    def _run_config(self, client, getpass_side_effects, local_profiles=None, local_providers=None):
         with tempfile.TemporaryDirectory() as tmpdir:
             key_file = Path(tmpdir) / "key.bin"
             key_file.write_text("initialized", "utf-8")
-            old_salt = b"old-sync-salt-01"
-            new_salt = b"new-sync-salt-02"
-            old_password = "old-sync-pass"
-            new_password = "new-sync-pass"
-            old_sync_key = sync._derive_sync_key(old_password, old_salt)
-            new_sync_key = sync._derive_sync_key(new_password, new_salt)
-            remote_profiles = {"remote": {"token": "value"}}
-            remote_providers = {"provider": {"api_key": "value"}}
-            remote_profiles_enc = Fernet(old_sync_key).encrypt(
-                json.dumps(remote_profiles).encode("utf-8")
-            )
-            remote_providers_enc = Fernet(old_sync_key).encrypt(
-                json.dumps(remote_providers).encode("utf-8")
-            )
-            client = FakeWebDAVClient(
-                downloads={
-                    "ccprofile/salt.bin": old_salt,
-                    "ccprofile/profiles.enc": remote_profiles_enc,
-                    "ccprofile/providers.enc": remote_providers_enc,
-                }
-            )
-
             with patch.object(sync, "KEY_FILE", key_file), patch.object(
                 sync, "WebDAVClient", return_value=client
             ), patch.object(
@@ -529,53 +510,211 @@ class SyncTest(unittest.TestCase):
             ), patch.object(
                 sync, "select_from_list", return_value="merge"
             ), patch.object(
-                sync, "_generate_salt", return_value=new_salt
+                sync, "_save_sync_setup"
+            ) as save_sync_setup, patch.object(
+                sync, "load_profiles", return_value=local_profiles or {}
             ), patch.object(
-                sync, "_save_sync_config"
-            ) as save_sync_config, patch.object(
-                sync, "_save_snapshot"
-            ) as save_snapshot, patch.object(
-                sync, "load_profiles", return_value={}
-            ), patch.object(
-                sync, "load_providers", return_value={}
+                sync, "load_providers", return_value=local_providers or {}
             ), patch(
-                "socket.gethostname", return_value="host-a"
+                "socket.gethostname", return_value="host-b"
             ), patch(
                 "builtins.input",
-                side_effect=[
-                    "https://example.com/dav",
-                    "user",
-                    "",
-                    "",
-                ],
+                side_effect=["https://example.com/dav", "user", "", ""],
             ), patch.object(
-                sync.getpass,
-                "getpass",
-                side_effect=["webdav-pass", new_password, new_password, old_password],
+                sync.getpass, "getpass", side_effect=getpass_side_effects
+            ), patch(
+                "builtins.print"
             ):
                 sync.cmd_sync_config(SimpleNamespace())
+            return save_sync_setup
 
-        saved_config = save_sync_config.call_args.args[0]
-        uploads = {path: data for path, data, _ in client.upload_calls}
-        rotated_profiles = json.loads(
-            Fernet(new_sync_key).decrypt(uploads["ccprofile/profiles.enc"]).decode("utf-8")
-        )
-        rotated_providers = json.loads(
-            Fernet(new_sync_key).decrypt(uploads["ccprofile/providers.enc"]).decode("utf-8")
-        )
-        meta = json.loads(uploads["ccprofile/sync_meta.json"].decode("utf-8"))
+    def test_join_reuses_remote_salt_and_does_not_touch_remote_data(self):
+        """第二台设备 join 时复用远端盐值,不轮换、不重新加密、不上传任何东西。"""
+        shared_password = "shared-sync-pass"
+        existing_salt = b"existing-salt-01"
+        sync_key = sync._derive_sync_key(shared_password, existing_salt)
+        remote_profiles = {"work": {"token": "from-device-a"}}
+        remote_profiles_enc = Fernet(sync_key).encrypt(json.dumps(remote_profiles).encode("utf-8"))
 
-        self.assertEqual(saved_config["salt"], base64.b64encode(new_salt).decode("ascii"))
-        self.assertEqual(saved_config["device_name"], "host-a")
-        self.assertEqual(uploads["ccprofile/salt.bin.bak"], old_salt)
-        self.assertEqual(uploads["ccprofile/profiles.enc.bak"], remote_profiles_enc)
-        self.assertEqual(uploads["ccprofile/providers.enc.bak"], remote_providers_enc)
-        self.assertEqual(uploads["ccprofile/salt.bin"], new_salt)
-        self.assertEqual(rotated_profiles, remote_profiles)
-        self.assertEqual(rotated_providers, remote_providers)
-        self.assertEqual(meta["profiles_hash"], sync._compute_digest(uploads["ccprofile/profiles.enc"]))
-        self.assertEqual(meta["providers_hash"], sync._compute_digest(uploads["ccprofile/providers.enc"]))
-        save_snapshot.assert_called_once_with({}, {})
+        client = FakeWebDAVClient(
+            downloads={
+                "ccprofile/salt.bin": existing_salt,
+                "ccprofile/profiles.enc": remote_profiles_enc,
+            }
+        )
+
+        # 第 4 个 getpass 值仅供「旧的轮换实现」使用;修复后只消费 3 个。
+        save_sync_setup = self._run_config(
+            client,
+            ["webdav-pass", shared_password, shared_password, shared_password],
+        )
+
+        saved_config = save_sync_setup.call_args.args[0]
+        # 1. 复用了远端已有盐值(没有轮换)
+        self.assertEqual(saved_config["salt"], base64.b64encode(existing_salt).decode("ascii"))
+        # 2. 没有任何上传(不重新加密远端数据、不上传新盐值)
+        self.assertEqual(client.upload_calls, [])
+        # 3. 远端数据原样未动
+        self.assertEqual(client.downloads["ccprofile/profiles.enc"], remote_profiles_enc)
+        self.assertEqual(client.downloads["ccprofile/salt.bin"], existing_salt)
+
+    def test_join_rejects_wrong_sync_password_without_saving(self):
+        """join 时同步密码错误应被拒绝,不保存配置、不上传。"""
+        shared_password = "shared-sync-pass"
+        wrong_password = "wrong-sync-pass"
+        existing_salt = b"existing-salt-02"
+        sync_key = sync._derive_sync_key(shared_password, existing_salt)
+        remote_profiles_enc = Fernet(sync_key).encrypt(
+            json.dumps({"work": {"token": "from-device-a"}}).encode("utf-8")
+        )
+
+        client = FakeWebDAVClient(
+            downloads={
+                "ccprofile/salt.bin": existing_salt,
+                "ccprofile/profiles.enc": remote_profiles_enc,
+            }
+        )
+
+        save_sync_setup = self._run_config(
+            client,
+            ["webdav-pass", wrong_password, wrong_password],
+        )
+
+        save_sync_setup.assert_not_called()
+        self.assertEqual(client.upload_calls, [])
+
+    def test_join_reuses_salt_even_when_remote_has_no_payload_data(self):
+        """盐值已存在但数据尚未推送时,后续设备仍应复用盐值,绝不生成新的。
+
+        覆盖边界:A 配置后(只上传盐值)还没 sync,B 此时配置。
+        若按「是否有数据」判定会生成新盐值覆盖 A 的,再次引发多设备失效。
+        """
+        existing_salt = b"only-salt-no-data"
+        client = FakeWebDAVClient(
+            downloads={"ccprofile/salt.bin": existing_salt}
+        )
+
+        save_sync_setup = self._run_config(
+            client,
+            ["webdav-pass", "any-password", "any-password"],
+        )
+
+        saved_config = save_sync_setup.call_args.args[0]
+        self.assertEqual(saved_config["salt"], base64.b64encode(existing_salt).decode("ascii"))
+        # 没有数据可校验,也不应上传任何东西
+        self.assertEqual(client.upload_calls, [])
+
+    def test_join_saves_empty_snapshot_so_first_sync_merges_instead_of_pulling(self):
+        """加入现有同步时必须保存「空快照」。
+
+        否则首次 sync 会因 快照==本地 而判定 local_changed=False -> 盲目 pull,
+        把本机已有数据静默覆盖。空快照使首次 sync 走 conflict -> merge,保住本机数据。
+        """
+        existing_salt = b"existing-salt-03"
+        shared_password = "shared-sync-pass"
+        sync_key = sync._derive_sync_key(shared_password, existing_salt)
+        remote_profiles_enc = Fernet(sync_key).encrypt(
+            json.dumps({"remote-only": {"token": "from-a"}}).encode("utf-8")
+        )
+        client = FakeWebDAVClient(
+            downloads={
+                "ccprofile/salt.bin": existing_salt,
+                "ccprofile/profiles.enc": remote_profiles_enc,
+            }
+        )
+        # 本机已有自己的本地数据(与远端不同)
+        local_profiles = {"my-local": {"token": "mine"}}
+
+        save_sync_setup = self._run_config(
+            client,
+            ["webdav-pass", shared_password, shared_password],
+            local_profiles=local_profiles,
+        )
+
+        # join 必须以空快照保存(而非本地数据),这才让首次 sync 检测到本地变更
+        self.assertEqual(save_sync_setup.call_args.args[1:], ({}, {}))
+
+
+class SyncJoinSnapshotTest(unittest.TestCase):
+    """加入(join)设备首次同步的方向判定:必须走合并,而非盲目 pull。"""
+
+    def test_detect_sync_action_routes_fresh_join_to_conflict(self):
+        """空快照 + 未记录远端摘要 + 远端有数据 + 本机有数据 -> conflict(走合并)。"""
+        action = sync._detect_sync_action(
+            snapshot_profiles={},
+            snapshot_providers={},
+            current_profiles={"my-local": {"token": "mine"}},
+            current_providers={},
+            remote_meta={"profiles_hash": "remote-h", "providers_hash": "rh2"},
+            stored_remote_profiles_md5=None,
+            stored_remote_providers_md5=None,
+        )
+        self.assertEqual(action, "conflict")
+
+    def test_detect_sync_action_with_local_snapshot_routes_to_pull(self):
+        """对照:若误用「本地数据当快照」(旧 bug),首次 sync 会被判为 pull——覆盖本地。
+
+        此测试锁定该语义,确保 join 必须用空快照而非本地数据。
+        """
+        action = sync._detect_sync_action(
+            snapshot_profiles={"my-local": {"token": "mine"}},  # 旧 bug:快照=本地
+            snapshot_providers={},
+            current_profiles={"my-local": {"token": "mine"}},
+            current_providers={},
+            remote_meta={"profiles_hash": "remote-h", "providers_hash": "rh2"},
+            stored_remote_profiles_md5=None,
+            stored_remote_providers_md5=None,
+        )
+        self.assertEqual(action, "pull")  # 这正是要避免的破坏性方向
+
+    def test_first_sync_after_join_merges_and_preserves_local_data(self):
+        """端到端:加入设备(空快照+本地数据)首次 sync 走 merge,本机数据不丢失。"""
+        shared_password = "shared-sync-pass"
+        existing_salt = b"join-e2e-salt-01"
+        sync_key = sync._derive_sync_key(shared_password, existing_salt)
+
+        remote_profiles = {"from-a": {"token": "remote-value"}}
+        remote_profiles_enc = Fernet(sync_key).encrypt(json.dumps(remote_profiles).encode("utf-8"))
+        local_profiles = {"my-local": {"token": "mine"}}
+
+        meta = {
+            "profiles_hash": sync._compute_digest(remote_profiles_enc),
+            "providers_hash": sync._compute_digest(b""),
+        }
+        client = FakeWebDAVClient(
+            downloads={
+                "ccprofile/profiles.enc": remote_profiles_enc,
+                "ccprofile/sync_meta.json": json.dumps(meta).encode("utf-8"),
+            }
+        )
+        # 加入设备的配置:无 stored remote 摘要、last_sync=None(正是 join 后的状态)
+        config = {
+            "webdav_url": "https://example.com/dav", "username": "u", "password": "p",
+            "verify_ssl": True, "remote_dir": "ccprofile", "strategy": "merge",
+            "device_name": "host-b", "salt": base64.b64encode(existing_salt).decode("ascii"),
+            "_local_dirty": False, "last_sync": None,
+        }
+
+        with patch.object(sync, "_get_sync_config", return_value=config), patch.object(
+            sync.getpass, "getpass", return_value=shared_password
+        ), patch.object(sync, "WebDAVClient", return_value=client), patch.object(
+            sync, "load_profiles", return_value=local_profiles
+        ), patch.object(sync, "load_providers", return_value={}), patch.object(
+            sync, "_load_snapshot", return_value=({}, {})
+        ), patch.object(
+            sync, "save_profiles"
+        ) as save_profiles, patch.object(
+            sync, "save_providers"
+        ), patch.object(sync, "_save_snapshot"), patch(
+            "builtins.print"
+        ):
+            sync.cmd_sync_auto(SimpleNamespace())
+
+        saved_profiles = save_profiles.call_args.args[0]
+        # 本机数据保住了
+        self.assertEqual(saved_profiles.get("my-local"), {"token": "mine"})
+        # 远端数据也合并进来了(没有丢失)
+        self.assertEqual(saved_profiles.get("from-a"), {"token": "remote-value"})
 
 
 if __name__ == "__main__":

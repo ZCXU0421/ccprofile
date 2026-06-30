@@ -92,6 +92,26 @@ class ShaAndThrottleTest(unittest.TestCase):
             updater.should_check_now(cache, now_ts=1000 + updater.UPDATE_CHECK_INTERVAL)
         )
 
+    def test_reverify_soon_when_newer_version_pending(self):
+        # A pending "newer version" hint (e.g. cached from a release that was
+        # later deleted, like a throwaway test release) must re-verify far
+        # sooner than the full 24h interval, so it doesn't nag about a phantom
+        # version for hours.
+        cache = {"last_check_ts": 1000, "latest_known": "9.9.9"}
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.1"):
+            self.assertTrue(
+                updater.should_check_now(
+                    cache, now_ts=1000 + updater.UPDATE_REVERIFY_INTERVAL
+                )
+            )
+
+    def test_full_interval_still_applies_when_not_pending(self):
+        # No newer version pending -> the normal 24h throttle still applies,
+        # even at 1h elapsed.
+        cache = {"last_check_ts": 1000, "latest_known": "0.3.1"}
+        with unittest.mock.patch.object(updater, "VERSION", "0.3.1"):
+            self.assertFalse(updater.should_check_now(cache, now_ts=1000 + 3600))
+
 
 class FetchReleaseTest(unittest.TestCase):
     def test_fetch_maps_api_response(self):

@@ -23,6 +23,7 @@ from .constants import (
     GITHUB_REPO,
     UPDATE_CHECK_FILE,
     UPDATE_CHECK_INTERVAL,
+    UPDATE_REVERIFY_INTERVAL,
     UPDATE_USER_AGENT,
     VERSION,
 )
@@ -113,11 +114,28 @@ def expected_sha256(asset_name, text):
     return None
 
 
-def should_check_now(cache, now_ts, interval=UPDATE_CHECK_INTERVAL):
-    """Return True if a new network check is allowed (interval or more since last)."""
+def should_check_now(cache, now_ts, interval=UPDATE_CHECK_INTERVAL,
+                     reverify_interval=UPDATE_REVERIFY_INTERVAL):
+    """Return True if a new network check is allowed.
+
+    Re-checks are throttled to ``interval`` (default 24h) so we don't hammer
+    GitHub. Exception: when the cache already advertises a version newer than
+    the running one, re-verify on the much shorter ``reverify_interval`` so a
+    release that was deleted or superseded (e.g. a throwaway test release)
+    stops producing a phantom "new version available" hint within an hour
+    instead of waiting out the full 24h window.
+    """
     last = cache.get("last_check_ts")
     if last is None:
         return True
+    latest = cache.get("latest_known")
+    if latest:
+        try:
+            pending = is_newer(latest, VERSION)
+        except ValueError:
+            pending = False  # cached value not a parseable version: normal throttle
+        if pending:
+            return now_ts - last >= reverify_interval
     return now_ts - last >= interval
 
 

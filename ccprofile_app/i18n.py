@@ -661,15 +661,14 @@ STRINGS = {
     "sync.test_connection_ok":    {"zh": "连接测试成功",                          "en": "Connection test successful"},
     "sync.error_http_warning":   {"zh": "警告: 使用 HTTP 传输数据不安全，建议使用 HTTPS。", "en": "Warning: Using HTTP is insecure. HTTPS is recommended."},
     "sync.prompt_sync_password_intro": {"zh": "设置同步密码（用于加密远端数据，请妥善保管）", "en": "Set sync password (used to encrypt remote data, keep it safe)"},
+    "sync.join_password_intro":  {"zh": "请输入该同步使用的同步密码（用于校验并加入）", "en": "Enter the sync password used by this sync (to verify and join)"},
     "sync.prompt_sync_password":  {"zh": "同步密码",                              "en": "Sync password"},
-    "sync.prompt_current_sync_password": {"zh": "当前同步密码",                   "en": "Current sync password"},
     "sync.prompt_sync_password_confirm": {"zh": "确认同步密码",                     "en": "Confirm sync password"},
     "sync.prompt_strategy":       {"zh": "选择冲突解决策略",                      "en": "Select conflict resolution strategy"},
     "sync.error_password_mismatch": {"zh": "两次密码不一致，请重新输入。",         "en": "Passwords do not match. Please try again."},
     "sync.config_saved":          {"zh": "同步配置已保存。使用 'ccprofile sync' 开始同步。", "en": "Sync config saved. Use 'ccprofile sync' to start syncing."},
     "sync.config_saved_no_salt":  {"zh": "配置已保存，但盐值上传失败。同步功能可能无法正常工作，请稍后重试配置。", "en": "Config saved, but salt upload failed. Sync may not work correctly; try re-configuring later."},
-    "sync.reusing_remote_salt":   {"zh": "检测到远端已有同步数据，复用已有密钥盐值。", "en": "Existing remote sync data detected, reusing remote key salt."},
-    "sync.rotate_remote_salt":    {"zh": "检测到远端已有同步数据，将校验当前同步密码并轮换新的盐值。", "en": "Existing remote sync data detected; validating current sync password and rotating to a new salt."},
+    "sync.reusing_remote_salt":   {"zh": "检测到远端已有同步配置，将复用远端盐值并加入现有同步（不轮换、不影响其它设备）。", "en": "Existing remote sync detected; reusing the remote salt and joining the existing sync (no rotation, other devices unaffected)."},
 
     # sync errors
     "sync.error_not_initialized": {"zh": "错误: 系统尚未初始化。请先运行 'ccprofile init'。", "en": "Error: Not initialized. Run 'ccprofile init' first."},
