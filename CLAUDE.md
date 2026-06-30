@@ -15,7 +15,7 @@ python ccprofile.py add <name>    # Add a profile
 python ccprofile.py switch <name> # Switch active profile
 ```
 
-No build system, no tests, no linter configured.
+No build system, no linter configured. **Tests exist** in `tests/`(121 tests, `python3 -m pytest`)。
 
 ## Architecture
 
@@ -24,17 +24,25 @@ No build system, no tests, no linter configured.
 | Module | Responsibility |
 |--------|---------------|
 | `cli.py` | argparse definitions, `main()`, `build_parser()` |
-| `constants.py` | Paths, field definitions, hooks templates |
-| `crypto.py` | Fernet key load/save, encrypt/decrypt |
-| `storage.py` | profiles/meta/settings file read/write and backup |
-| `hooks.py` | Hooks generation, Bark key masking |
-| `formatting.py` | Token masking |
-| `prompts.py` | Interactive profile field input |
 | `commands.py` | `cmd_init`, `cmd_add`, `cmd_switch`, `cmd_list`, `cmd_show`, `cmd_edit`, `cmd_delete`, `cmd_current` |
-| `terminal.py` | Arrow key reading, list selection, VT mode |
-| `menu.py` | `interactive_menu()` |
+| `provider.py` | Provider CRUD(`provider` 子命令) |
+| `proxy.py` / `proxy_process.py` | 内置 HTTP 代理服务器,把 Claude Code 请求路由到不同 provider;`proxy` 子命令管理该进程 |
+| `sync.py` / `webdav.py` | WebDAV 远程同步(`sync` 子命令) |
+| `updater.py` | 自更新(`update` 子命令):检测、下载、校验并替换 ccprofile 包 |
+| `storage.py` | profiles / meta / settings 文件读写与备份 |
+| `crypto.py` | Fernet 密钥加载 / 保存、加解密 |
+| `constants.py` | 路径、字段、hooks 模板、版本号(`VERSION`) |
+| `hooks.py` | hooks 生成与 Bark key 脱敏 |
+| `formatting.py` | 脱敏与输出格式工具 |
+| `prompts.py` | profile 字段交互输入 |
+| `menu.py` | 交互式菜单主循环 |
+| `terminal.py` | 终端按键读取、列表选择、VT mode 支持 |
+| `picker.py` | `pick_profile()` / `pick_provider()` 共享选择器 |
+| `display.py` | 终端 UI 面板(非 TTY 时降级为纯文本) |
+| `filelock.py` | 跨平台文件锁(flock / msvcrt) |
+| `i18n.py` | 国际化(zh / en) |
 
-**Dependency direction**: `cli` -> `commands`/`menu` -> `storage`/`prompts`/`hooks`/`formatting` -> `crypto`/`constants`. No reverse dependencies.
+**Dependency direction**: `cli` -> `commands` / `menu` -> `storage` / `prompts` / `hooks` / `formatting` -> `crypto` / `constants`。反向依赖不存在。
 
 **Data flow**: Profiles are stored as a single JSON blob, encrypted with Fernet, and written to `~/.claude/profiles.enc`. The encryption key lives in `~/.claude/.profile_key`. The `switch` command reads a profile, backs up `~/.claude/settings.json` to `settings.json.bak`, merges the profile's `env` keys into the existing settings (preserving unrecognized fields), and writes the result.
 
@@ -49,7 +57,7 @@ No build system, no tests, no linter configured.
 
 ## CLI Commands
 
-`init`, `add`, `switch`, `list`, `show`, `edit`, `delete`, `current` — see README.md for full usage.
+顶层子命令: `init`, `add`, `switch`, `list`, `show`, `edit`, `delete`, `current`(profile 管理);`provider {add,list,show,edit,delete}`(provider CRUD);`proxy {status,stop,logs}`;`sync {config,status,strategy,reset}`(WebDAV 同步);`teams`(Teams 集成);`update [--check] [-y] [--force] [--prerelease]`(自更新)。详见 README.md。
 
 ## 发布流程 (Release)
 
