@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 CLAUDE_DIR = Path.home() / ".claude"
 PROFILE_DIR = Path.home() / ".ccprofile"
@@ -114,3 +114,9 @@ CCPROFILE_MANAGED_ENV_KEYS = {
     "CLAUDE_CODE_DISABLE_1M_CONTEXT",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
 }
+
+# ── Self-update ──
+GITHUB_REPO = "ZCXU0421/ccprofile"
+UPDATE_CHECK_FILE = PROFILE_DIR / "update_check.json"
+UPDATE_CHECK_INTERVAL = 86400  # seconds (24h)
+UPDATE_USER_AGENT = f"ccprofile/{VERSION}"

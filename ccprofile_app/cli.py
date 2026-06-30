@@ -47,6 +47,7 @@ from .sync import (  # noqa: E402
     cmd_sync_strategy,
 )
 from .storage import migrate_from_legacy  # noqa: E402
+from .updater import cmd_update, maybe_check_on_launch, emit_launch_hint  # noqa: E402
 
 
 def build_parser():
@@ -177,6 +178,13 @@ def build_parser():
 
     sync_sub.add_parser("reset", help=t("cli.sync_reset_help"))
 
+    # update
+    p_upd = sub.add_parser("update", help=t("cli.update_help"))
+    p_upd.add_argument("--check", action="store_true", help=t("cli.update_check_help"))
+    p_upd.add_argument("-y", "--yes", action="store_true", help=t("cli.update_yes_help"))
+    p_upd.add_argument("--force", action="store_true", help=t("cli.update_force_help"))
+    p_upd.add_argument("--prerelease", action="store_true", help=t("cli.update_prerelease_help"))
+
     return parser
 
 
@@ -195,8 +203,15 @@ def main():
 
     migrate_from_legacy()
 
+    # Kick off the background update check early so the fetch overlaps whatever
+    # the user does and never blocks the CLI. Skip it for the `update` subcommand,
+    # which fetches itself and sets _updated_this_run to mute the exit hint.
+    if args.command != "update":
+        maybe_check_on_launch()
+
     if not args.command:
         interactive_menu()
+        emit_launch_hint()
         return
 
     commands = {
@@ -210,6 +225,7 @@ def main():
         "current": cmd_current,
         "teams": cmd_teams,
         "context-1m": cmd_context_1m,
+        "update": cmd_update,
     }
 
     provider_commands = {
@@ -250,3 +266,5 @@ def main():
             cmd_sync_auto(args)
     else:
         commands[args.command](args)
+
+    emit_launch_hint()

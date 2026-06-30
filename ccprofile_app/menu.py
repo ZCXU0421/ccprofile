@@ -25,6 +25,7 @@ from .sync import (
 from .storage import load_meta
 from .picker import pick_profile, pick_provider
 from .terminal import select_from_list
+from .updater import cmd_update
 
 
 def _main_menu():
@@ -64,9 +65,10 @@ def _advanced_menu():
 
 def _system_menu():
     return [
-        ("init",     t("menu.init_reset")),
-        ("language", t("menu.language_settings")),
-        ("_sync",    t("menu.sync_settings")),
+        ("init",         t("menu.init_reset")),
+        ("language",     t("menu.language_settings")),
+        ("check_update", t("menu.check_update")),
+        ("_sync",        t("menu.sync_settings")),
     ]
 
 
@@ -119,6 +121,7 @@ def interactive_menu():
         "sync_status": cmd_sync_status,
         "sync_strategy": cmd_sync_strategy,
         "sync_reset": cmd_sync_reset,
+        "check_update": cmd_update,
         "provider_add": cmd_provider_add,
         "provider_list": cmd_provider_list,
         "provider_show": cmd_provider_show,
@@ -192,6 +195,11 @@ def interactive_menu():
             args.apply = True
         elif cmd_name == "sync_strategy":
             args.strategy_arg = None
+        elif cmd_name == "check_update":
+            args.check = False
+            args.yes = False
+            args.force = False
+            args.prerelease = False
 
         try:
             commands_map[cmd_name](args)

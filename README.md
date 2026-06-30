@@ -65,6 +65,24 @@ python ccprofile.py init
 
 源码模式下可用 `python ccprofile.py ...` 代替 `ccprofile ...`。
 
+## 更新
+
+已安装的 ccprofile 可自更新到最新版本：
+
+```bash
+ccprofile update            # 检测并更新
+ccprofile update --check    # 仅检测，不更新
+ccprofile update -y         # 跳过确认
+ccprofile update --force    # 即使同版本也重装
+ccprofile update --prerelease  # 纳入预发布版本
+```
+
+- macOS / Linux 会原地替换安装目录（`~/.local/share/ccprofile`），PATH 上的 wrapper 不受影响，更新后立即生效。
+- Windows 因运行中的 `.exe` 被锁定，更新完成后会提示「请重新运行 ccprofile」，由后台脚本完成替换。
+- 每次启动会在后台静默检查新版本（每天最多联网一次），发现新版本时向终端打印一行提示。
+- 关闭启动检查：设置环境变量 `CCPROFILE_NO_UPDATE_CHECK=1`。
+- 也可在交互式菜单「系统设置 → 检查更新」中触发。
+
 ## 快速开始
 
 ### 单一模式
