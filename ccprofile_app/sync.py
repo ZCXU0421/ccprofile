@@ -494,10 +494,10 @@ def _connect_sync_client_or_exit(connection_info: dict, verify_ssl: bool):
     return client
 
 
-def _prompt_sync_password() -> str:
+def _prompt_sync_password(intro_key: str = "sync.prompt_sync_password_intro") -> str:
     """读取并确认同步密码。"""
     print()
-    print(f"  {DIM}{t('sync.prompt_sync_password_intro')}{RESET}")
+    print(f"  {DIM}{t(intro_key)}{RESET}")
     while True:
         sync_password = getpass.getpass(f"  {t('sync.prompt_sync_password')}: ").strip()
         if not sync_password:
@@ -527,82 +527,40 @@ def _select_sync_strategy() -> Optional[str]:
     return strategy
 
 
-def _rotate_remote_salt_if_needed(client, remote_dir: str, sync_password: str, device_name: str):
-    """如远端已有数据，验证旧密码并轮换 salt。"""
-    remote_salt = None
-    salt_uploaded = False
+def _probe_remote_sync_state(client, remote_dir: str) -> tuple[Optional[bytes], bool]:
+    """探测远端同步状态。返回 (远端盐值或 None, 远端是否已有同步数据)。
 
+    盐值是所有设备共享的基础设施:首台设备生成,后续设备必须复用,
+    绝不在 join 时轮换——否则会让其它设备本地盐值失效、解不开远端数据。
+    判定「加入」的依据是盐值是否存在(而非数据是否存在):即使首台设备
+    只上传了盐值、还没推送数据,后续设备也必须复用同一盐值。
+    """
     try:
         remote_salt = client.download(f"{remote_dir}/{REMOTE_SALT_FILE}")
-        remote_profiles_enc, remote_providers_enc = _download_remote_payloads(client, remote_dir)
     except WebDAVNotFoundError:
-        return _generate_salt(), salt_uploaded, remote_salt
+        return None, False
     except WebDAVError as exc:
         print(f"  {RED}{t('sync.error_download')}{RESET}: {exc}")
         sys.exit(1)
 
-    if not remote_profiles_enc and not remote_providers_enc:
-        return _generate_salt(), salt_uploaded, remote_salt
-
-    print(f"  {DIM}{t('sync.rotate_remote_salt')}{RESET}")
-    current_sync_password = getpass.getpass(
-        f"  {t('sync.prompt_current_sync_password')}: "
-    ).strip()
-    if not current_sync_password:
-        print(f"  {t('cmd.canceled')}")
-        return None, salt_uploaded, remote_salt
-
-    old_sync_key = _derive_sync_key(current_sync_password, remote_salt)
-    salt = _generate_salt()
-    new_sync_key = _derive_sync_key(sync_password, salt)
-
     try:
-        rotated_profiles_enc = (
-            _re_encrypt(remote_profiles_enc, old_sync_key, new_sync_key)
-            if remote_profiles_enc else b""
-        )
-        rotated_providers_enc = (
-            _re_encrypt(remote_providers_enc, old_sync_key, new_sync_key)
-            if remote_providers_enc else b""
-        )
-    except InvalidToken:
-        print(f"  {RED}{t('sync.error_sync_key_invalid')}{RESET}")
-        sys.exit(1)
-
-    try:
-        _upload_payload_with_backup(
-            client,
-            f"{remote_dir}/{REMOTE_PROFILES_FILE}",
-            rotated_profiles_enc,
-        )
-        _upload_payload_with_backup(
-            client,
-            f"{remote_dir}/{REMOTE_PROVIDERS_FILE}",
-            rotated_providers_enc,
-        )
-        _upload_payload_with_backup(
-            client,
-            f"{remote_dir}/{REMOTE_SALT_FILE}",
-            salt,
-        )
-        _upload_sync_meta(
-            client,
-            remote_dir,
-            _compute_digest(rotated_profiles_enc),
-            _compute_digest(rotated_providers_enc),
-            device_name,
-        )
+        remote_profiles_enc, remote_providers_enc = _download_remote_payloads(client, remote_dir)
     except WebDAVError as exc:
-        print(f"  {RED}{t('sync.error_upload')}{RESET}: {exc}")
+        print(f"  {RED}{t('sync.error_download')}{RESET}: {exc}")
         sys.exit(1)
 
-    return salt, True, remote_salt
+    return remote_salt, bool(remote_profiles_enc or remote_providers_enc)
 
 
-def _save_sync_setup(config: dict) -> None:
-    """保存同步配置和初始快照。"""
+def _save_sync_setup(config: dict, snapshot_profiles: dict, snapshot_providers: dict) -> None:
+    """保存同步配置和初始快照。
+
+    初始化(首台设备)时 snapshot 传当前本地数据;加入(join)已有同步时传空 {}——
+    否则首次 sync 会因「快照==本地」判定 local_changed=False 而走盲目 pull,把本机
+    已有数据静默覆盖。空快照使首次 sync 检测到双向变更 -> conflict -> merge,保住本机数据。
+    """
     _save_sync_config(config)
-    _save_snapshot(load_profiles(), load_providers())
+    _save_snapshot(snapshot_profiles, snapshot_providers)
 
 
 def _build_sync_config(connection_info: dict, verify_ssl: bool, strategy: str, salt: bytes) -> dict:
@@ -622,7 +580,12 @@ def _build_sync_config(connection_info: dict, verify_ssl: bool, strategy: str, s
 
 
 def cmd_sync_config(args):
-    """交互式配置 WebDAV 同步。"""
+    """交互式配置 WebDAV 同步。
+
+    远端无数据 -> 初始化(生成新盐值);远端已有数据 -> 加入(复用远端盐值)。
+    绝不静默轮换盐值:轮换会让其它设备本地盐值失效、解不开远端数据。
+    要更换同步密码请用 `sync reset` 后在所有设备重新配置。
+    """
     if not KEY_FILE.exists():
         print(t("sync.error_not_initialized"))
         sys.exit(1)
@@ -638,27 +601,45 @@ def cmd_sync_config(args):
     verify_ssl = not confirm_action(t("sync.prompt_no_ssl"), default_yes=False)
     client = _connect_sync_client_or_exit(connection_info, verify_ssl)
 
-    sync_password = _prompt_sync_password()
-    if not sync_password:
-        return
+    remote_salt, remote_has_data = _probe_remote_sync_state(
+        client, connection_info["remote_dir"]
+    )
+
+    if remote_salt is not None:
+        # 远端盐值已存在 -> 加入现有同步:复用盐值(绝不生成新的,否则会让其它
+        # 设备本地盐值失效、解不开远端数据)。若远端已有数据,顺便校验同步密码。
+        print(f"  {DIM}{t('sync.reusing_remote_salt')}{RESET}")
+        sync_password = _prompt_sync_password(intro_key="sync.join_password_intro")
+        if not sync_password:
+            return
+        if remote_has_data:
+            sync_key = _derive_sync_key(sync_password, remote_salt)
+            if not _verify_remote_sync_key(
+                client, {"remote_dir": connection_info["remote_dir"]}, sync_key
+            ):
+                return
+        salt = remote_salt
+        salt_uploaded = True
+        # 加入时用「空快照」:首次 sync 才会检测到本机数据并走 merge,而非盲目 pull 覆盖。
+        snapshot_profiles, snapshot_providers = {}, {}
+    else:
+        # 远端连盐值都没有 -> 初始化全新同步:生成新盐值并待上传。
+        sync_password = _prompt_sync_password()
+        if not sync_password:
+            return
+        salt = _generate_salt()
+        salt_uploaded = False
+        # 初始化时以本机当前数据为基线快照。
+        snapshot_profiles, snapshot_providers = load_profiles(), load_providers()
 
     strategy = _select_sync_strategy()
     if strategy is None:
         return
 
-    salt, salt_uploaded, remote_salt = _rotate_remote_salt_if_needed(
-        client,
-        connection_info["remote_dir"],
-        sync_password,
-        connection_info["device_name"],
-    )
-    if salt is None:
-        return
-
     config = _build_sync_config(connection_info, verify_ssl, strategy, salt)
-    _save_sync_setup(config)
+    _save_sync_setup(config, snapshot_profiles, snapshot_providers)
 
-    if not salt_uploaded and (remote_salt is None or remote_salt != salt):
+    if not salt_uploaded:
         try:
             _upload_payload_with_backup(
                 client,

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 
 CLAUDE_DIR = Path.home() / ".claude"
 PROFILE_DIR = Path.home() / ".ccprofile"
@@ -119,4 +119,9 @@ CCPROFILE_MANAGED_ENV_KEYS = {
 GITHUB_REPO = "ZCXU0421/ccprofile"
 UPDATE_CHECK_FILE = PROFILE_DIR / "update_check.json"
 UPDATE_CHECK_INTERVAL = 86400  # seconds (24h)
+# When the cache already advertises a version newer than the running one, we
+# re-verify on this much shorter window so a release that was deleted or
+# superseded (e.g. a throwaway test release) stops producing a phantom
+# "new version available" hint within an hour instead of waiting 24h.
+UPDATE_REVERIFY_INTERVAL = 3600  # seconds (1h)
 UPDATE_USER_AGENT = f"ccprofile/{VERSION}"
